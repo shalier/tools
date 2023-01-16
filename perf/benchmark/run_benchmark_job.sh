@@ -64,10 +64,14 @@ export TRIALRUN=${TRIALRUN:-"False"}
 
 CLEANUP_PIDS=()
 
-# Step 1: setup cluster
+# Step 1: create cluster
 # shellcheck disable=SC1090,SC1091
 # source "${ROOT}/../bin/setup_cluster.sh"
 # setup_e2e_cluster
+export KUBECONFIG="${WD}/tmp/kube.yaml"
+pushd "${ROOT}/istio-install"
+  ./cluster.sh create
+popd
 
 # Step 2: install Istio
 # Setup release info
@@ -154,6 +158,10 @@ function exit_handling() {
 
   # Cleanup cluster resources
   # cleanup
+  # Delete cluster
+  pushd "${ROOT}/istio-install"
+    ./cluster.sh delete
+  popd
 }
 
 # add trap to copy raw data when exiting, also output logging information for debugging
