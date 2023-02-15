@@ -457,10 +457,8 @@ spec:
         - name: nighthawk-test-server-config
           mountPath: /var/lib/nighthawk
         {{- end }}
-        image: {{ $.Values.curlImage }}
-        args:
-        - /bin/sleep
-        - 3650d
+        image: curlimages/curl
+        command: ["sleep", "365d"]
       - name: uncaptured
         securityContext:
           runAsUser: 1

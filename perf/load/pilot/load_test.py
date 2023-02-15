@@ -36,7 +36,7 @@ def config_push_converge_query(prom: Prometheus, svc: str = "svc-0", namespace: 
         svc, namespace
     )
     result = prom.fetch_by_query(
-        'count(envoy_cluster_upstream_cx_total{cluster_name=~".*pilot-load.*"}) by (cluster_name)')
+        'count(envoy_cluster_upstream_cx_total{service_istio_io_canonical_name=~".*svc.*"}) by (service_istio_io_canonical_name)')
     if not result:
         return []
     return [(point['metric'], point['value'][1])

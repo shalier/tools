@@ -19,10 +19,14 @@ spec:
       honorLabels: true
       interval: 15s
       relabelings:
-        - sourceLabels: [job]
-          action: replace
-          replacement: kubernetes-cadvisor
-          targetLabel: job
+        # - sourceLabels: [job]
+        #   action: replace
+        #   replacement: kubernetes-cadvisor
+        #   targetLabel: job
+        - sourceLabels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          targetLabels: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
       metricRelabelings:
         - action: drop
           regex: container_(network_tcp_usage_total|network_udp_usage_total|tasks_state|cpu_load_average_10s)

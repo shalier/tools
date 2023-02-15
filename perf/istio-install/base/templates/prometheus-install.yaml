@@ -5,8 +5,11 @@ kind: StorageClass
 metadata:
   name: ssd
 parameters:
-  type: pd-ssd
-provisioner: kubernetes.io/gce-pd
+  skuName: Standard_LRS
+  location: eastus
+# parameters:
+#   type: pd-ssd
+provisioner: disk.csi.azure.com # kubernetes.io/gce-pd
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
 {{- end}}

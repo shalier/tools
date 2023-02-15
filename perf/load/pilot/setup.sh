@@ -24,9 +24,9 @@ WD=$(dirname $0)
 WD=$(cd $WD; pwd)
 
 function setup_test() {
-  local NAMESPACE=${NAMESPACE:-"pilot-load"}
+  local NAMESPACE="pilot-load"
   local HELM_FLAGS=${HELM_FLAGS:-"instances=50"}
-  local INJECTION_LABEL=${INJECTION_LABEL:-"istio-injection=enabled"}
+  local INJECTION_LABEL="istio-injection=enabled"
 
   mkdir -p "${WD}/tmp"
   local OUTFILE="${WD}/tmp/${NAMESPACE}.yaml"
