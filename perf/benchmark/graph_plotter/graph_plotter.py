@@ -20,8 +20,10 @@ import matplotlib.pyplot as plt
 
 metric_dict = {"cpu-client": "cpu_mili_avg_istio_proxy_fortioclient",
                "cpu-server": "cpu_mili_avg_istio_proxy_fortioserver",
+               "cpu-ingressgateway": "cpu_mili_avg_istio_proxy_istio-ingressgateway",
                "mem-client": "mem_Mi_avg_istio_proxy_fortioclient",
-               "mem-server": "mem_Mi_avg_istio_proxy_fortioserver"}
+               "mem-server": "mem_Mi_avg_istio_proxy_fortioserver",
+               "mem-ingressgateway": "mem_Mi_avg_istio_proxy_istio-ingressgateway"}
 
 
 def plotter(args):
@@ -140,7 +142,7 @@ def get_parser():
     parser.add_argument(
         "--graph_type",
         help="Choose from one of them: [latency-p50, latency-p90, latency-p99, latency-p999, "
-             "cpu-client, cpu-server, mem-client, mem-server]."
+             "cpu-client, cpu-server, mem-client, mem-server, cpu-ingressgateway, mem-ingressgateway]."
     )
     parser.add_argument(
         "--x_axis",

@@ -14,7 +14,6 @@
 
 import os
 import datetime
-from google.cloud import storage
 
 
 cwd = os.getcwd()
@@ -43,9 +42,9 @@ def download_benchmark_csv(download_dataset_days, current_release, project_id, b
         os.makedirs(perf_data_path)
 
     download_dateset = get_download_dateset(int(download_dataset_days))
-    storage_client = storage.Client(project_id)
+    # storage_client = storage.Client(project_id)
 
-    bucket = storage_client.bucket(bucket_name)
+    # bucket = storage_client.bucket(bucket_name)
 
     blobs = storage_client.list_blobs(bucket_name, prefix=bucket_prefix, delimiter=bucket_delimiter)
     print(list(blobs))

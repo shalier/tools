@@ -31,7 +31,7 @@ data:
       name: Prometheus
       orgId: 1
       type: prometheus
-      url: http://istio-prometheus.istio-prometheus:9090
+      url: http://prometheus.istio-system:9090
   dashboardproviders.yaml: |
     apiVersion: 1
     providers:
