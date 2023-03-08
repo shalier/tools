@@ -15,8 +15,7 @@
 # limitations under the License.
 #
 # this program checks the config push latency for the pilot.
-import check_metrics
-from prometheus import Query, Alarm, Prometheus
+
 import sys
 import os
 import time
@@ -41,10 +40,12 @@ def config_push_converge_query(prom: Prometheus, svc: str = "svc-0", namespace: 
         return []
     return [(point['metric'], point['value'][1])
             for point in result['data']['result']]
+import check_metrics
+from prometheus import Query, Alarm, Prometheus
 
 
 def setup_pilot_loadtest(instance, svc_entry: int):
-    helm = 'serviceEntries=%d,instances=%d' % (svc_entry, instance)
+    helm = 'serviceEntries=%d,instances=%d' % (svc_entry,  instance)
     print('setup the loads, %s' % helm)
     env = os.environ
     env['HELM_FLAGS'] = helm
@@ -53,25 +54,10 @@ def setup_pilot_loadtest(instance, svc_entry: int):
     ], env=env)
     p.wait()
 
-
-def wait_till_converge(prom: Prometheus):
-    '''Confirm all the Envoy config has been converged to a single version.'''
-    occurrence = 0
-    start = time.time()
-    while True:
-        count = config_push_converge_query(prom)
-        print('[Query] ', int(time.time() - start), 'seconds, ', count)
-        time.sleep(5)
-
-
 def testall(svc: int, se: int):
     prom = check_metrics.setup_promethus()
     print('finished promethus setup', prom.url)
     setup_pilot_loadtest(svc, se)
-    start = time.time()
-    # ensure version is converged.
-    wait_till_converge(prom)
-    print('version converged in %s seconds ' % (time.time() - start))
 
 
 def init_parser():
@@ -79,10 +65,9 @@ def init_parser():
         description='Program for load test.')
     parser.add_argument('-s', '--start',
                         nargs=2, type=int,
-                        default=[1000, 0],
+                        default=[0, 10],
                         help='initial number of the services and service entries')
     return parser.parse_args()
-
 
 if __name__ == '__main__':
     result = init_parser()

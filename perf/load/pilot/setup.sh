@@ -24,10 +24,9 @@ WD=$(dirname $0)
 WD=$(cd $WD; pwd)
 
 function setup_test() {
-  local NAMESPACE="pilot-load"
-  local HELM_FLAGS=${HELM_FLAGS:-"instances=50"}
-  local INJECTION_LABEL="istio-injection=enabled"
-
+  local NAMESPACE=${NAMESPACE:-"pilot-load"}
+  local HELM_FLAGS=${HELM_FLAGS:-"instances=10"}
+  local INJECTION_LABEL=${INJECTION_LABEL:-"istio-injection=enabled"}
   mkdir -p "${WD}/tmp"
   local OUTFILE="${WD}/tmp/${NAMESPACE}.yaml"
 
@@ -35,7 +34,6 @@ function setup_test() {
   kubectl label namespace "${NAMESPACE}" "${INJECTION_LABEL}" || true
 
   helm --namespace "${NAMESPACE}" --set "${HELM_FLAGS}" template "${WD}" > "${OUTFILE}"
-
   if [[ -z "${DRY_RUN}" ]]; then
       kubectl --namespace "${NAMESPACE}" apply -f "${OUTFILE}"
   fi

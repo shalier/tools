@@ -48,14 +48,19 @@ export USE_MASON_RESOURCE="${USE_MASON_RESOURCE:-False}"
 export CLEAN_CLUSTERS="${CLEAN_CLUSTERS:-True}"
 export OWNER="${OWNER:-perf-tests}"
 export CREATE_CLUSTER="${CREATE_CLUSTER:-false}"
-
+export TAG="latest"
 # Istio performance test related Env vars
 export NAMESPACE=${NAMESPACE:-'twopods-istio'}
+<<<<<<< HEAD
 export PROMETHEUS_NAMESPACE=${PROMETHEUS_NAMESPACE:-'aks-istio-system'}
+=======
+export PROMETHEUS_NAMESPACE=${PROMETHEUS_NAMESPACE:-'istio-system'}
+>>>>>>> 7cf807bb (benchmark and fiddling load tests)
 export ISTIO_INJECT=${ISTIO_INJECT:-true}
 export DNS_DOMAIN="fake-dns.org"
 export LOAD_GEN_TYPE=${LOAD_GEN_TYPE:-"fortio"}
-export FORTIO_CLIENT_URL=""
+export FORTIO_CLIENT_URL=${FORTIO_CLIENT_URL:-"http://20.81.52.30:9076"}
+export PROMETHEUS_URL=http://localhost:9090
 export IOPS=${IOPS:-istioctl_profiles/default-overlay.yaml}
 export ISTIO_RELEASE_VERSION="${ISTIO_RELEASE_VERSION:-}"
 # For adding or modifying configurations, refer to perf/benchmark/README.md
@@ -80,16 +85,16 @@ pushd "${ROOT}/istio-install"
   ./cluster.sh create
 popd
 # Step 1: setup/create cluster
-if [[ "${CREATE_CLUSTER}" == "true" ]]; then
-  export KUBECONFIG="${WD}/tmp/kube.yaml"
-  pushd "${ROOT}/istio-install"
-    ./cluster.sh create
-  popd
-else
-  # shellcheck disable=SC1090,SC1091
-  source "${ROOT}/../bin/setup_cluster.sh"
-  setup_e2e_cluster
-fi
+# if [[ "${CREATE_CLUSTER}" == "true" ]]; then
+#   export KUBECONFIG="${WD}/tmp/kube.yaml"
+#   pushd "${ROOT}/istio-install"
+#     ./cluster.sh create
+#   popd
+# else
+#   # shellcheck disable=SC1090,SC1091
+#   source "${ROOT}/../bin/setup_cluster.sh"
+#   setup_e2e_cluster
+# fi
 
 # Step 2: install Istio
 # Setup release info
@@ -99,25 +104,18 @@ fi
 #   BRANCH="${BRANCH_NUM}-dev"
 # fi
 
-# Different branch tag resides in dev release directory like /latest, /1.4-dev, /1.5-dev etc.
-# INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${BRANCH}")
-# echo "Setup istio release: ${INSTALL_VERSION}"
-
 # pushd "${ROOT}/istio-install"
-#    DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh
+#   if [[ ${ISTIO_RELEASE_VERSION} ]]; then
+#     INSTALL_VERSION=${ISTIO_RELEASE_VERSION}
+#     echo "Setup istio release: ${INSTALL_VERSION}"
+#     VERSION=${INSTALL_VERSION} ./setup_istio.sh
+#   else
+#     # Different branch tag resides in dev release directory like /latest, /1.4-dev, /1.5-dev etc.
+     INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${BRANCH}")
+#     echo "Setup istio release: ${INSTALL_VERSION}"
+#     DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh
+#   fi
 # popd
-pushd "${ROOT}/istio-install"
-  if [[ ${ISTIO_RELEASE_VERSION} ]]; then
-    INSTALL_VERSION=${ISTIO_RELEASE_VERSION}
-    echo "Setup istio release: ${INSTALL_VERSION}"
-    VERSION=${INSTALL_VERSION} ./setup_istio.sh
-  else
-    # Different branch tag resides in dev release directory like /latest, /1.4-dev, /1.5-dev etc.
-    INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${BRANCH}")
-    echo "Setup istio release: ${INSTALL_VERSION}"
-    DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh
-  fi
-popd
 
 # Step 3: setup Istio performance test
 pushd "${WD}"
@@ -171,6 +169,44 @@ function setup_fortio_and_prometheus() {
 }
 
 setup_fortio_and_prometheus
+
+function unsetup_clusters() {
+  # use current-context if pilot_cluster not set
+  PILOT_CLUSTER="${PILOT_CLUSTER:-$(kubectl config current-context)}"
+
+  unset IFS
+  k_contexts=$(kubectl config get-contexts -o name)
+  for context in ${k_contexts}; do
+     kubectl config use-context "${context}"
+
+     kubectl delete clusterrolebinding prow-cluster-admin-binding 2>/dev/null
+     if [[ "${SETUP_CLUSTERREG}" == "True" && "${PILOT_CLUSTER}" != "$context" ]]; then
+        kubectl delete clusterrolebinding istio-multi-test 2>/dev/null
+        kubectl delete ns ${SA_NAMESPACE} 2>/dev/null
+     fi
+  done
+  kubectl config use-context "${PILOT_CLUSTER}"
+  if [[ "${USE_GKE}" == "True" && "${SETUP_CLUSTERREG}" == "True" ]]; then
+     gcloud compute firewall-rules delete istio-multicluster-test-pods --quiet
+  fi
+}
+
+function mason_cleanup() {
+  if [[ ${MASON_CLIENT_PID} != -1 ]]; then
+    kill -SIGINT ${MASON_CLIENT_PID} || echo "failed to kill mason client"
+    wait
+  fi
+}
+
+function cleanup() {
+  if [[ "${CLEAN_CLUSTERS}" == "True" ]]; then
+    unsetup_clusters
+  fi
+  if [[ "${USE_MASON_RESOURCE}" == "True" ]]; then
+    mason_cleanup
+    cat "${FILE_LOG}"
+  fi
+}
 
 # Step 7: setup exit handling
 function exit_handling() {
@@ -311,6 +347,12 @@ for dir in "${CONFIG_DIR}"/*; do
         DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
       fi
     popd
+    #   if [[ ${ISTIO_RELEASE_VERSION} ]]; then
+    #     VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
+    #   else
+    #     DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
+    #   fi
+    # popd
 
     # Custom pre-run
     # if [[ -e "./prerun.sh" ]]; then

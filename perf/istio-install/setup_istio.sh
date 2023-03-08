@@ -89,7 +89,7 @@ function install_istioctl() {
 function install_extras() {
   local domain=${DNS_DOMAIN:?"DNS_DOMAIN like v104.qualistio.org"}
   local certmanagerEmail=${CERTMANAGER_EMAIL:-""}
-  kubectl create namespace istio-prometheus || true
+  kubectl create namespace istio-system || true
   # Deploy the gateways and prometheus operator.
   # Deploy CRDs with create, they are too big otherwise
   kubectl create -f base/files || true # Might fail if we already installed, so allow failures
@@ -103,7 +103,7 @@ function install_extras() {
 
   # Check deployment
   MAXRETRIES=0
-  until kubectl rollout status --watch --timeout=60s statefulset/prometheus-prometheus -n istio-prometheus || [ $MAXRETRIES -eq 60 ]
+  until kubectl rollout status --watch --timeout=60s deployment/prometheus -n istio-system || [ $MAXRETRIES -eq 60 ]
   do
     MAXRETRIES=$((MAXRETRIES + 1))
     sleep 5
@@ -113,15 +113,6 @@ function install_extras() {
     exit 1
   fi
 
-  # Also deploy relevant ServiceMonitors
-  if [[ -f "${release}/samples/addons/extras/prometheus-operator.yaml" ]];then
-     kubectl apply -f "${release}/samples/addons/extras/prometheus-operator.yaml" -n istio-system
-      # Deploy k8s ServiceMonitors
-     kubectl apply -f "${WD}/addons/servicemonitors.yaml"
-  # for release before 1.7, run below instead
-  else
-    "${release}/bin/istioctl" manifest generate --set profile=empty --set addonComponents.prometheusOperator.enabled=true -d "${release}/manifests" | kubectl apply -f -
-  fi
   # deploy grafana
   kubectl apply -f "${release}/samples/addons/grafana.yaml" -n istio-system
   kubectl apply -f "${WD}/addons/grafana-cm.yaml" -n istio-system # override just the configmap

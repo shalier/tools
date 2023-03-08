@@ -23,17 +23,287 @@ spec:
         image: docker.io/istio/proxyv2:1.16.0
 
 ---
+{{ range until (int .Values.instances) }}
+# Source: pilot/templates/services.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: svc-{{ . }}
+  name: fortioserver-{{ . }}
 spec:
-  selector:
-    app: svc-{{ . }}
   ports:
-    {{ range until (int $.Values.ports) }}
-    - port: 89{{.}}
-      name: http-{{.}}
-    {{ end }}
+  - name: http-echo
+    port: 8080
+    protocol: TCP
+  - name: grpc-ping
+    port: 8079
+    protocol: TCP
+  - name: tcp-echo
+    port: 8078
+    protocol: TCP
+  - name: http-echoa
+    port: 8077
+    protocol: TCP
+  - name: grpc-pinga
+    port: 8076
+    protocol: TCP
+  - name: fortio-reporting
+    port: 9076
+    protocol: TCP
+  selector:
+    app: fortioserver-{{ . }}
+---
+# Source: pilot/templates/services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fortioclient-{{ . }}
+spec:
+  ports:
+  - name: http-echo
+    port: 8080
+    protocol: TCP
+  - name: grpc-ping
+    port: 8079
+    protocol: TCP
+  - name: tcp-echo
+    port: 8078
+    protocol: TCP
+  - name: http-echoa
+    port: 8077
+    protocol: TCP
+  - name: grpc-pinga
+    port: 8076
+    protocol: TCP
+  - name: fortio-reporting
+    port: 9076
+    protocol: TCP
+  selector:
+    app: fortioclient-{{ . }}
+  type: LoadBalancer
+---
+# Source: pilot/templates/services.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: fortioserver-{{ . }}
+  name: fortioserver-{{ . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fortioserver-{{ . }}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/interceptionMode: REDIRECT
+        sidecar.istio.io/inject: "true"
+        linkerd.io/inject: "disabled"
+        # exclude inbound ports of the uncaptured container
+        traffic.sidecar.istio.io/excludeInboundPorts: "8076,8077,8078,8081,9999"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "80,8076,8077,8078, 8081"
+        sidecar.istio.io/proxyCPU: 1000m
+        sidecar.istio.io/proxyMemory: 512Mi
+      labels:
+        app: fortioserver-{{ . }}
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - "fortioclient"
+            topologyKey: "kubernetes.io/hostname"
+      volumes:
+      - name: shared-data
+        emptyDir: {}
+      containers:
+      # - name: istio-proxy
+      #   image: docker.io/istio/proxyv2:1.16.0
+      - name: captured
+        securityContext:
+          runAsUser: 1
+        volumeMounts:
+        - name: shared-data
+          mountPath: /var/lib/fortio
+        image:  fortio/fortio:latest_release
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 8079
+          protocol: TCP
+        - containerPort: 8078
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 1500m
+            memory: 1000Mi
+      - name: shell
+        securityContext:
+          runAsUser: 1
+        volumeMounts:
+        - name: shared-data
+          mountPath: /var/lib/fortio
+        
+        image: cfmanteiga/alpine-bash-curl-jq:latest
+        args:
+        - /bin/sleep
+        - 3650d
+      - name: uncaptured
+        securityContext:
+          runAsUser: 1
+        image: fortio/fortio:latest_release
+        args:
+        - server
+        - -http-port
+        - "8077"
+        - -grpc-port
+        - "8076"
+        - -tcp-port
+        - "8078"
+        - -redirect-port
+        - "8081"
+        resources:
+          requests:
+            cpu: 1500m
+            memory: 1000Mi
+---
+# Source: pilot/templates/services.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: fortioclient-{{ . }}
+  name: fortioclient-{{ . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fortioclient-{{ . }}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/interceptionMode: REDIRECT
+        sidecar.istio.io/inject: "true"
+        linkerd.io/inject: "disabled"
+        # exclude inbound ports of the uncaptured container
+        traffic.sidecar.istio.io/excludeInboundPorts: "8076,8077,8078,8081,9999"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "80,8076,8077,8078, 8081"
+        sidecar.istio.io/proxyCPU: 1000m
+        sidecar.istio.io/proxyMemory: 512Mi
+      labels:
+        app: fortioclient-{{ . }}
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - "fortioserver"
+            topologyKey: "kubernetes.io/hostname"
+      volumes:
+      - name: shared-data
+        emptyDir: {}
+      containers:
+      # - name: istio-proxy
+      #   image: docker.io/istio/proxyv2:1.16.0
+      - name: captured
+        securityContext:
+          runAsUser: 1
+        volumeMounts:
+        - name: shared-data
+          mountPath: /var/lib/fortio
+        image:  fortio/fortio:latest_release
+        args:
+        - report
+        resources:
+          requests:
+            cpu: 1500m
+            memory: 1000Mi
+      - name: shell
+        securityContext:
+          runAsUser: 1
+        volumeMounts:
+        - name: shared-data
+          mountPath: /var/lib/fortio
+        
+        image: cfmanteiga/alpine-bash-curl-jq:latest
+        args:
+        - /bin/sleep
+        - 3650d
+      - name: uncaptured
+        securityContext:
+          runAsUser: 1
+        image: fortio/fortio:latest_release
+        args:
+        - report
+        - -http-port
+        - "8077"
+        - -grpc-port
+        - "8076"
+        - -redirect-port
+        - "8081"
+        - -tcp-port
+        - "8078"
+        resources:
+          requests:
+            cpu: 1500m
+            memory: 1000Mi
 ---
 {{ end }}
+# Source: pilot/templates/services.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: fortio-gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - fortioserver.local
+    - fortioclient.local
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+---
+# Source: pilot/templates/services.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: fortioserver
+spec:
+  hosts:
+  - fortioserver.local
+  gateways:
+  - fortio-gateway
+  http:
+  - route:
+    - destination:
+        host: fortioserver
+        port:
+          number: 8080
+---
+# Source: pilot/templates/services.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: fortioclient
+spec:
+  hosts:
+  - fortioclient.local
+  gateways:
+  - fortio-gateway
+  http:
+  - route:
+    - destination:
+        host: fortioclient
+        port:
+          number: 8080
