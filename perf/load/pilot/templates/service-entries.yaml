@@ -5,13 +5,10 @@ metadata:
   name: ext-svc-{{.}}
 spec:
   hosts:
-    - {{.}}.example.com
+    - www.google.com
   ports:
     - number: 80
       name: http
       protocol: HTTP
-    - number: 443
-      name: https
-      protocol: HTTPS
 ---
 {{ end }}

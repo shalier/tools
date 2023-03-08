@@ -33,19 +33,11 @@ def assert_empty(l, msg):
 def find_prometheus():
     """Prometheus can be in different locations depending on if we use operator
     or default Istio install."""
-    try:
-        subprocess.check_output(
-            ['kubectl', 'get', '-n', 'istio-prometheus',
-                'deployment/istio-operator'],
-            stderr=subprocess.DEVNULL
-        )
-        return "istio-prometheus", "statefulset/prometheus-istio-prometheus"
-    except subprocess.CalledProcessError:
-        return "istio-system", "deployment/prometheus"
+    return "istio-system", "deployment/prometheus"
 
 
 def setup_promethus():
-    port = os.environ.get("PROM_PORT", "9990")
+    port = os.environ.get("PROM_PORT", "9090")
     namespace, deployment = find_prometheus()
     port_forward = subprocess.Popen([
         'kubectl',
