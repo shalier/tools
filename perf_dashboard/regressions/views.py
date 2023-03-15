@@ -19,7 +19,7 @@ import os
 
 
 cwd = os.getcwd()
-perf_data_path = cwd + "/perf_data/"
+perf_data_path = "file://localhost/home/shalier/tools/perf_dashboard/perf_data/"
 
 # Create your views here.
 

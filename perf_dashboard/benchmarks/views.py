@@ -18,11 +18,12 @@ import pandas as pd
 from helpers import bucket
 import os
 
-cwd = os.getcwd()
-perf_data_path = cwd + "/perf_data/"
+# cwd = os.getcwd()
+# perf_data_path = cwd + "/perf_data/"
+csv_filename = os.path.join(os.path.dirname(__file__), 'merged.csv')
 
-cur_selected_release = []
-master_selected_release = []
+# cur_selected_release = []
+# master_selected_release = []
 
 cpu_cur_selected_release = []
 cpu_master_selected_release = []
@@ -44,12 +45,12 @@ qps_query_str = 'ActualQPS == @ql and NumThreads == 16 and Labels.str.endswith(@
 
 
 def csv_url_uploaded(uploaded_csv_url, func_to_call):
-    uploaded_csv_path = cwd + uploaded_csv_url
-    df = pd.read_csv(uploaded_csv_path)
+    # uploaded_csv_path = cwd + uploaded_csv_url
+    df = pd.read_csv(csv_filename)
 
     context = func_to_call(df)
 
-    os.remove(uploaded_csv_path)
+    os.remove(csv_filename)
     return context
 
 
@@ -59,50 +60,50 @@ def csv_url_not_uploaded(request, func_to_call):
     bucket_name = request.COOKIES.get('bucketName')
     download_dataset_days = request.COOKIES.get('downloadDatasetDays')
 
-    if not current_release:
-        current_release = os.getenv('CUR_RELEASE')
+    # if not current_release:
+    #     current_release = os.getenv('CUR_RELEASE')
 
-    cur_href_links, cur_release_names, cur_release_dates, master_href_links, master_release_names, \
-        master_release_dates = bucket.download_benchmark_csv(
-            download_dataset_days=download_dataset_days, current_release=current_release, project_id=project_id, bucket_name=bucket_name)
+    # cur_href_links, cur_release_names, cur_release_dates, master_href_links, master_release_names, \
+    #     master_release_dates = bucket.download_benchmark_csv(
+    #         download_dataset_days=download_dataset_days, current_release=current_release, project_id=project_id, bucket_name=bucket_name)
 
-    cur_benchmark_test_ids = get_benchmark_test_ids(cur_href_links)
-    master_benchmark_test_ids = get_benchmark_test_ids(master_href_links)
+    cur_benchmark_test_ids = []#get_benchmark_test_ids(cur_href_links)
+    master_benchmark_test_ids = []# get_benchmark_test_ids(master_href_links)
 
-    if request.method == "POST" and 'current_release_name' in request.POST:
-        cur_selected_release.append(request.POST['current_release_name'])
+    # if request.method == "POST" and 'current_release_name' in request.POST:
+    #     cur_selected_release.append(request.POST['current_release_name'])
 
-    df = pd.read_csv(perf_data_path + "cur_temp.csv")
+    df = pd.read_csv(csv_filename)
 
-    if cur_release_names is not None and len(cur_release_names) > 0:
-        try:
-            df = pd.read_csv(perf_data_path + cur_href_links[0].split("/")[4] + "_benchmark.csv")
-        except BaseException:
-            print("Failed to parse csv file.")
-    # Parse data for the current release
-    if len(cur_selected_release) > 1:
-        cur_selected_release.pop(0)
-    if len(cur_selected_release) > 0:
-        df = pd.read_csv(perf_data_path + cur_selected_release[0] + "_benchmark.csv")
+    # if cur_release_names is not None and len(cur_release_names) > 0:
+    #     try:
+    #         df = pd.read_csv(perf_data_path + cur_href_links[0].split("/")[4] + "_benchmark.csv")
+    #     except BaseException:
+    #         print("Failed to parse csv file.")
+    # # Parse data for the current release
+    # if len(cur_selected_release) > 1:
+    #     cur_selected_release.pop(0)
+    # if len(cur_selected_release) > 0:
+    #     df = pd.read_csv(perf_data_path + cur_selected_release[0] + "_benchmark.csv")
 
     release_context = func_to_call(df)
 
     # Parse data for the master
-    if request.method == "POST" and 'master_release_name' in request.POST:
-        master_selected_release.append(request.POST['master_release_name'])
+    # if request.method == "POST" and 'master_release_name' in request.POST:
+    #     master_selected_release.append(request.POST['master_release_name'])
 
-    df = pd.read_csv(perf_data_path + "master_temp.csv")
+    # df = pd.read_csv(perf_data_path + "master_temp.csv")
 
-    if master_release_names is not None and len(master_release_names) > 0:
-        try:
-            df = pd.read_csv(perf_data_path + master_href_links[0].split("/")[4] + "_benchmark.csv")
-        except BaseException:
-            print("Failed to parse csv file.")
+    # if master_release_names is not None and len(master_release_names) > 0:
+    #     try:
+    #         df = pd.read_csv(perf_data_path + master_href_links[0].split("/")[4] + "_benchmark.csv")
+    #     except BaseException:
+    #         print("Failed to parse csv file.")
     # Parse data for the current release
-    if len(master_selected_release) > 1:
-        master_selected_release.pop(0)
-    if len(master_selected_release) > 0:
-        df = pd.read_csv(perf_data_path + master_selected_release[0] + "_benchmark.csv")
+    # if len(master_selected_release) > 1:
+    #     master_selected_release.pop(0)
+    # if len(master_selected_release) > 0:
+    #     df = pd.read_csv(perf_data_path + master_selected_release[0] + "_benchmark.csv")
 
     return df, release_context, cur_benchmark_test_ids, master_benchmark_test_ids, current_release
 
@@ -171,12 +172,12 @@ def latency_vs_conn(request, uploaded_csv_url=None):
         latency_none_security_authz_jwt_both_p999_master = get_latency_vs_conn_y_series(df, '_none_security_authz_jwt_both', 'p999')
         latency_none_security_peer_authn_both_p999_master = get_latency_vs_conn_y_series(df, '_none_security_peer_authn_both', 'p999')
 
-        other_context = {'current_release': [current_release],
-                         'cur_selected_release': cur_selected_release,
-                         'master_selected_release': master_selected_release,
-                         'cur_release_names': cur_benchmark_test_ids,
-                         'master_release_names': master_benchmark_test_ids,
-                         }
+        # other_context = {'current_release': [current_release],
+        #                  'cur_selected_release': cur_selected_release,
+        #                  'master_selected_release': master_selected_release,
+        #                  'cur_release_names': cur_benchmark_test_ids,
+        #                  'master_release_names': master_benchmark_test_ids,
+        #                  }
 
         master_context = {'latency_none_mtls_base_p50_master': latency_none_mtls_base_p50_master,
                           'latency_none_mtls_both_p50_master': latency_none_mtls_both_p50_master,
@@ -224,7 +225,7 @@ def latency_vs_conn(request, uploaded_csv_url=None):
                           'latency_none_security_peer_authn_both_p999_master': latency_none_security_peer_authn_both_p999_master,
                           }
 
-        context = reduce(lambda x, y: dict(x, **y), (other_context, release_context, master_context))
+        context = reduce(lambda x, y: dict(x, **y), (release_context, master_context))
 
         return render(request, "latency_vs_conn.html", context=context)
 
@@ -428,10 +429,10 @@ def cpu_vs_qps(request, uploaded_csv_url=None):
 
 def cpu_vs_conn(request, uploaded_csv_url=None):
 
-    if uploaded_csv_url is not None:
-        context = csv_url_uploaded(uploaded_csv_url=uploaded_csv_url, func_to_call=get_cpu_vs_conn_context)
-        return context
-    else:
+    # if uploaded_csv_url is not None:
+    #     context = csv_url_uploaded(uploaded_csv_url=uploaded_csv_url, func_to_call=get_cpu_vs_conn_context)
+    #     return context
+    # else:
         df, release_context, cur_benchmark_test_ids, master_benchmark_test_ids, current_release = csv_url_not_uploaded(
             request=request, func_to_call=get_cpu_vs_conn_context)
 

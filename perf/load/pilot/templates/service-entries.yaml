@@ -10,5 +10,6 @@ spec:
     - number: 80
       name: http
       protocol: HTTP
+  resolution: DNS
 ---
 {{ end }}
