@@ -36,53 +36,53 @@ IOPS="${IOPS:-istioctl_profiles/long-running.yaml,istioctl_profiles/long-running
 # * RELEASE_URL: where to download the release from.
 
 # Passing a tag, like latest or 1.4-dev
-if [[ -n "${TAG:-}" ]]; then
-  VERSION=$(curl -sL https://gcsweb.istio.io/gcs/istio-build/dev/"${TAG}")
-  OUT_FILE="istio-${VERSION}"
-  RELEASE_URL="https://storage.googleapis.com/istio-build/dev/${VERSION}/istio-${VERSION}-${ARCH_SUFFIX}.tar.gz"
-# Passing a dev version, like 1.4-alpha.41dee99277dbed4bfb3174dd0448ea941cf117fd
-elif [[ -n "${DEV_VERSION:-}" ]]; then
-  OUT_FILE="istio-${DEV_VERSION}"
-  RELEASE_URL="https://storage.googleapis.com/istio-build/dev/${DEV_VERSION}/istio-${DEV_VERSION}-${ARCH_SUFFIX}.tar.gz"
-# Passing a version, like 1.4.2
-elif [[ -n "${VERSION:-}" ]]; then
-  OUT_FILE="istio-${VERSION}"
-  RELEASE_URL="https://storage.googleapis.com/istio-prerelease/prerelease/${VERSION}/istio-${VERSION}-${ARCH_SUFFIX}.tar.gz"
-# Passing a release url, like https://storage.googleapis.com/istio-prerelease/prerelease/1.4.1/istio-1.4.1-linux-amd64.tar.gz
-elif [[ -n "${RELEASE_URL:-}" ]]; then
-  OUT_FILE=${OUT_FILE:-"$(basename "${RELEASE_URL}" "-${ARCH_SUFFIX}.tar.gz")"}
-# Passing a gcs url, like gs://istio-build/dev/1.4-alpha.41dee99277dbed4bfb3174dd0448ea941cf117fd
-elif [[ -n "${GCS_URL:-}" ]]; then
-  RELEASE_URL="${GCS_URL}"
-  OUT_FILE=${OUT_FILE:-"$(basename "${RELEASE_URL}" "-${ARCH_SUFFIX}.tar.gz")"}
-fi
+# if [[ -n "${TAG:-}" ]]; then
+#   VERSION=$(curl -sL https://gcsweb.istio.io/gcs/istio-build/dev/"${TAG}")
+#   OUT_FILE="istio-${VERSION}"
+#   RELEASE_URL="https://storage.googleapis.com/istio-build/dev/${VERSION}/istio-${VERSION}-${ARCH_SUFFIX}.tar.gz"
+# # Passing a dev version, like 1.4-alpha.41dee99277dbed4bfb3174dd0448ea941cf117fd
+# elif [[ -n "${DEV_VERSION:-}" ]]; then
+#   OUT_FILE="istio-${DEV_VERSION}"
+#   RELEASE_URL="https://storage.googleapis.com/istio-build/dev/${DEV_VERSION}/istio-${DEV_VERSION}-${ARCH_SUFFIX}.tar.gz"
+# # Passing a version, like 1.4.2
+# elif [[ -n "${VERSION:-}" ]]; then
+#   OUT_FILE="istio-${VERSION}"
+#   RELEASE_URL="https://storage.googleapis.com/istio-prerelease/prerelease/${VERSION}/istio-${VERSION}-${ARCH_SUFFIX}.tar.gz"
+# # Passing a release url, like https://storage.googleapis.com/istio-prerelease/prerelease/1.4.1/istio-1.4.1-linux-amd64.tar.gz
+# elif [[ -n "${RELEASE_URL:-}" ]]; then
+#   OUT_FILE=${OUT_FILE:-"$(basename "${RELEASE_URL}" "-${ARCH_SUFFIX}.tar.gz")"}
+# # Passing a gcs url, like gs://istio-build/dev/1.4-alpha.41dee99277dbed4bfb3174dd0448ea941cf117fd
+# elif [[ -n "${GCS_URL:-}" ]]; then
+#   RELEASE_URL="${GCS_URL}"
+#   OUT_FILE=${OUT_FILE:-"$(basename "${RELEASE_URL}" "-${ARCH_SUFFIX}.tar.gz")"}
+# fi
 
-if [[ -z "${RELEASE_URL:-}" ]]; then
-  echo "Must set one of TAG, VERSION, DEV_VERSION, RELEASE_URL, GCS_URL"
-  exit 2
-fi
+# if [[ -z "${RELEASE_URL:-}" ]]; then
+#   echo "Must set one of TAG, VERSION, DEV_VERSION, RELEASE_URL, GCS_URL"
+#   exit 2
+# fi
 
-function download_release() {
-  outfile="${DIRNAME}/${OUT_FILE}"
-  if [[ ! -d "${outfile}" ]]; then
-    tmp=$(mktemp -d)
-    if [[ "${RELEASE_URL}" == gs://* ]]; then
-      gsutil cp "${RELEASE_URL}" "${tmp}/out.tar.gz"
-      tar xvf "${tmp}/out.tar.gz" -C "${DIRNAME}"
-    else
-      curl -fJLs -o "${tmp}/out.tar.gz" "${RELEASE_URL}"
-      tar xvf "${tmp}/out.tar.gz" -C "${DIRNAME}"
-    fi
-  else
-    echo "${outfile} already exists, skipping download"
-  fi
-}
+# function download_release() {
+#   outfile="${DIRNAME}/${OUT_FILE}"
+#   if [[ ! -d "${outfile}" ]]; then
+#     tmp=$(mktemp -d)
+#     if [[ "${RELEASE_URL}" == gs://* ]]; then
+#       gsutil cp "${RELEASE_URL}" "${tmp}/out.tar.gz"
+#       tar xvf "${tmp}/out.tar.gz" -C "${DIRNAME}"
+#     else
+#       curl -fJLs -o "${tmp}/out.tar.gz" "${RELEASE_URL}"
+#       tar xvf "${tmp}/out.tar.gz" -C "${DIRNAME}"
+#     fi
+#   else
+#     echo "${outfile} already exists, skipping download"
+#   fi
+# }
 
 function install_istioctl() {
   release=${1:?release folder}
   shift
   for i in ${IOPS//,/ }; do
-    "${release}/bin/istioctl" install --skip-confirmation -d "${release}/manifests" -f "${i}" "${@}"
+    istioctl install --skip-confirmation -d "${release}/manifests" -f "${i}" "${@}"
   done
 }
 
@@ -130,8 +130,8 @@ function install_extras() {
 
 if [[ -z "${SKIP_INSTALL}" ]];then
   if [[ -z "${LOCAL_ISTIO_PATH}" ]];then
-    download_release
-    install_istioctl "${DIRNAME}/${OUT_FILE}" "${@}"
+    # download_release
+    # install_istioctl "${DIRNAME}/${OUT_FILE}" "${@}"
 
     if [[ -z "${SKIP_EXTRAS:-}" ]]; then
       install_extras
