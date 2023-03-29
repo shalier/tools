@@ -53,70 +53,41 @@ export ISTIO_RELEASE_VERSION="${ISTIO_RELEASE_VERSION:-}"
 # For adding or modifying configurations, refer to perf/benchmark/README.md
 export CONFIG_DIR=${CONFIG_DIR:-"${WD}/configs/istio"}
 export PERF_TEST_CONFIGURATION=${PERF_TEST_CONFIGURATION:-"${WD}/configs/run_perf_test.conf"}
+echo $PERF_TEST_CONFIGURATION
 # For enabling fortio server ingress cert for testing with TLS
 export FORTIO_SERVER_INGRESS_CERT_ENABLED="${FORTIO_SERVER_INGRESS_CERT_ENABLED:-false}"
 
 # Other Env vars
-export GCS_BUCKET=${GCS_BUCKET:-"istio-build/perf"}
 export TRIALRUN=${TRIALRUN:-"False"}
 
+INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/latest")
+pushd "${ROOT}/istio-install"
+   DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh -f istioctl_profiles/default-overlay.yaml
+popd
 
 CLEANUP_PIDS=()
 
-# Step 1: setup/create cluster
-# if [[ "${CREATE_CLUSTER}" == "true" ]]; then
-#   export KUBECONFIG="${WD}/tmp/kube.yaml"
-#   pushd "${ROOT}/istio-install"
-#     ./cluster.sh create
-#   popd
-# else
-#   # shellcheck disable=SC1090,SC1091
-#   source "${ROOT}/../bin/setup_cluster.sh"
-#   setup_e2e_cluster
-# fi
-
-# Step 2: install Istio
-# Setup release info
-BRANCH="latest"
-# if [[ "${GIT_BRANCH}" != "master" ]];then
-#   BRANCH_NUM=$(echo "$GIT_BRANCH" | cut -f2 -d-)
-#   BRANCH="${BRANCH_NUM}-dev"
-# fi
-
-# pushd "${ROOT}/istio-install"
-#   if [[ ${ISTIO_RELEASE_VERSION} ]]; then
-#     INSTALL_VERSION=${ISTIO_RELEASE_VERSION}
-#     echo "Setup istio release: ${INSTALL_VERSION}"
-#     VERSION=${INSTALL_VERSION} ./setup_istio.sh
-#   else
-#     # Different branch tag resides in dev release directory like /latest, /1.4-dev, /1.5-dev etc.
-     INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${BRANCH}")
-#     echo "Setup istio release: ${INSTALL_VERSION}"
-#     DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh
-#   fi
+# Step 3: setup Istio performance test
+# pushd "${WD}"
+# export ISTIO_INJECT="true"
+# ./setup_test.sh
 # popd
 
-# Step 3: setup Istio performance test
-pushd "${WD}"
-export ISTIO_INJECT="true"
-./setup_test.sh
-popd
+# # Step 4: install Python dependencies
+# # Install pipenv
+# if [[ $(command -v pipenv) == "" ]];then
+#   apt-get update && apt-get -y install python3-pip
+#   pip3 install pipenv
+# fi
 
-# Step 4: install Python dependencies
-# Install pipenv
-if [[ $(command -v pipenv) == "" ]];then
-  apt-get update && apt-get -y install python3-pip
-  pip3 install pipenv
-fi
-
-# Install dependencies
-cd "${WD}"
-pipenv install
+# # Install dependencies
+# cd "${WD}"
+# pipenv install
 
 # Step 5: setup perf data local output directory
 dt=$(date +'%Y%m%d')
 # Current output dir should be like: 20200523_nighthawk_master_1.7-alpha.f19fb40b777e357b605e85c04fb871578592ad1e
-export OUTPUT_DIR="${dt}_${LOAD_GEN_TYPE}_${INSTALL_VERSION}"
+export OUTPUT_DIR="${dt}_${LOAD_GEN_TYPE}"
 LOCAL_OUTPUT_DIR="/tmp/${OUTPUT_DIR}"
 mkdir -p "${LOCAL_OUTPUT_DIR}"
 
@@ -137,7 +108,7 @@ function setup_fortio_and_prometheus() {
     fi
 
     export PROMETHEUS_URL=http://localhost:9090
-    kubectl -n "${PROMETHEUS_NAMESPACE}" port-forward svc/istio-prometheus 9090:9090 &>/dev/null &
+    kubectl -n "${PROMETHEUS_NAMESPACE}" port-forward svc/prometheus 9090:9090 &>/dev/null &
     CLEANUP_PIDS+=("$!")
 
     FORTIO_CLIENT_POD=$(kubectl get pods -n "${NAMESPACE}" | grep fortioclient | awk '{print $1}')
@@ -164,9 +135,6 @@ function unsetup_clusters() {
      fi
   done
   kubectl config use-context "${PILOT_CLUSTER}"
-  if [[ "${USE_GKE}" == "True" && "${SETUP_CLUSTERREG}" == "True" ]]; then
-     gcloud compute firewall-rules delete istio-multicluster-test-pods --quiet
-  fi
 }
 
 function mason_cleanup() {
@@ -198,7 +166,6 @@ function exit_handling() {
 
   # Copy raw data from fortio client pod
   kubectl --namespace "${NAMESPACE}" cp "${FORTIO_CLIENT_POD}":/var/lib/fortio tmp/rawdata -c shell
-  #gsutil -q cp -r /tmp/rawdata "gs://${GCS_BUCKET}/${OUTPUT_DIR}/rawdata"
 
   if [[ "${CREATE_CLUSTER}" == "true" ]]; then
     # Delete cluster
@@ -217,10 +184,10 @@ trap exit_handling EXIT
 
 # Step 8: run Istio performance test
 # Helper functions
-function collect_flame_graph() {
-    FLAME_OUTPUT_DIR="${WD}/flame/flameoutput"
-    # gsutil -q cp -r "${FLAME_OUTPUT_DIR}/*.svg" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/flamegraphs" || true
-}
+# function collect_flame_graph() {
+#     FLAME_OUTPUT_DIR="${WD}/flame/flameoutput"
+#     # gsutil -q cp -r "${FLAME_OUTPUT_DIR}/*.svg" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/flamegraphs" || true
+# }
 
 function collect_metrics() {
   # shellcheck disable=SC2155
@@ -230,7 +197,6 @@ function collect_metrics() {
 cpu_mili_avg_istio_proxy_fortioserver,cpu_mili_avg_istio_proxy_istio-ingressgateway,mem_Mi_avg_istio_proxy_fortioclient,\
 mem_Mi_avg_istio_proxy_fortioserver,mem_Mi_avg_istio_proxy_istio-ingressgateway
 
-  # gsutil -q cp "${CSV_OUTPUT}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/benchmark.csv"
 }
 
 function run_benchmark_test() {
@@ -262,8 +228,8 @@ function collect_envoy_info() {
   FILE_SUFFIX=${3}
 
   ENVOY_DUMP_NAME="${LOAD_GEN_TYPE}_${POD_NAME}_${CONFIG_NAME}_${FILE_SUFFIX}.yaml"
+  echo "storing envoy info in $ENVOY_DUMP_NAME"
   kubectl exec -n "${NAMESPACE}" "${POD_NAME}" -c istio-proxy -- curl http://localhost:15000/"${FILE_SUFFIX}" > "${ENVOY_DUMP_NAME}"
-  # gsutil -q cp -r "${ENVOY_DUMP_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/${FILE_SUFFIX}/${ENVOY_DUMP_NAME}"
 }
 
 function collect_config_dump() {
@@ -280,14 +246,13 @@ function collect_pod_spec() {
   POD_NAME=${1}
   POD_SPEC_NAME="${LOAD_GEN_TYPE}_${POD_NAME}.yaml"
   kubectl get pods "${POD_NAME}" -n "${NAMESPACE}" -o yaml > "${POD_SPEC_NAME}"
-  # gsutil -q cp -r "${POD_SPEC_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/pod_spec/${POD_SPEC_NAME}"
 }
 
 # install tools for profiling
-apt-get update && apt-get -y install linux-tools-generic
+# apt-get update && apt-get -y install linux-tools-generic
 
 # Start run perf test
-echo "Start to run perf benchmark test, all collected data will be dumped to GCS bucket: ${GCS_BUCKET}/${OUTPUT_DIR}"
+echo "Start to run perf benchmark test"
 
 # Read through perf test configuration file to determine which group of test configuration to run or not run
 read_perf_test_conf "${PERF_TEST_CONFIGURATION}"  
@@ -303,16 +268,16 @@ for dir in "${CONFIG_DIR}"/*; do
     pushd "${dir}"
 
     # Install istio with custom overlay
-    # if [[ -e "./installation.yaml" ]]; then
-    #    extra_overlay="-f ${dir}/installation.yaml"
-    # fi
-    # pushd "${ROOT}/istio-install"
-    #   if [[ ${ISTIO_RELEASE_VERSION} ]]; then
-    #     VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-    #   else
-    #     DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-    #   fi
-    # popd
+    if [[ -e "./installation.yaml" ]]; then
+       extra_overlay="-f ${dir}/installation.yaml"
+    fi
+    pushd "${ROOT}/istio-install"
+      if [[ ${ISTIO_RELEASE_VERSION} ]]; then
+        VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
+      else
+        DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
+      fi
+    popd
 
     # Custom pre-run
     if [[ -e "./prerun.sh" ]]; then
@@ -351,7 +316,7 @@ for dir in "${CONFIG_DIR}"/*; do
        source postrun.sh
     fi
 
-    collect_flame_graph
+    # collect_flame_graph
     # TODO: can be added to shared_postrun.sh
 
     # restart proxy after each group
