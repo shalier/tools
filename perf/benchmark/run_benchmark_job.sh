@@ -51,11 +51,7 @@ export CREATE_CLUSTER="${CREATE_CLUSTER:-false}"
 export TAG="latest"
 # Istio performance test related Env vars
 export NAMESPACE=${NAMESPACE:-'twopods-istio'}
-<<<<<<< HEAD
 export PROMETHEUS_NAMESPACE=${PROMETHEUS_NAMESPACE:-'aks-istio-system'}
-=======
-export PROMETHEUS_NAMESPACE=${PROMETHEUS_NAMESPACE:-'istio-system'}
->>>>>>> 7cf807bb (benchmark and fiddling load tests)
 export ISTIO_INJECT=${ISTIO_INJECT:-true}
 export DNS_DOMAIN="fake-dns.org"
 export LOAD_GEN_TYPE=${LOAD_GEN_TYPE:-"fortio"}
@@ -66,6 +62,7 @@ export ISTIO_RELEASE_VERSION="${ISTIO_RELEASE_VERSION:-}"
 # For adding or modifying configurations, refer to perf/benchmark/README.md
 export CONFIG_DIR=${CONFIG_DIR:-"${WD}/configs/istio"}
 export PERF_TEST_CONFIGURATION=${PERF_TEST_CONFIGURATION:-"${WD}/configs/run_perf_test.conf"}
+echo $PERF_TEST_CONFIGURATION
 # For enabling fortio server ingress cert for testing with TLS
 export FORTIO_SERVER_INGRESS_CERT_ENABLED="${FORTIO_SERVER_INGRESS_CERT_ENABLED:-false}"
 
@@ -73,6 +70,10 @@ export FORTIO_SERVER_INGRESS_CERT_ENABLED="${FORTIO_SERVER_INGRESS_CERT_ENABLED:
 # export GCS_BUCKET=${GCS_BUCKET:-"istio-build/perf"}
 export TRIALRUN=${TRIALRUN:-"False"}
 
+INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/latest")
+pushd "${ROOT}/istio-install"
+   DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh -f istioctl_profiles/default-overlay.yaml
+popd
 
 CLEANUP_PIDS=()
 
@@ -117,11 +118,12 @@ popd
 #   fi
 # popd
 
-# Step 3: setup Istio performance test
-pushd "${WD}"
-export ISTIO_INJECT="true"
-./setup_test.sh
-popd
+# # Step 4: install Python dependencies
+# # Install pipenv
+# if [[ $(command -v pipenv) == "" ]];then
+#   apt-get update && apt-get -y install python3-pip
+#   pip3 install pipenv
+# fi
 
 # Step 4: install Python dependencies
 # Install pipenv
@@ -186,9 +188,6 @@ function unsetup_clusters() {
      fi
   done
   kubectl config use-context "${PILOT_CLUSTER}"
-  if [[ "${USE_GKE}" == "True" && "${SETUP_CLUSTERREG}" == "True" ]]; then
-     gcloud compute firewall-rules delete istio-multicluster-test-pods --quiet
-  fi
 }
 
 function mason_cleanup() {
@@ -258,7 +257,6 @@ function collect_metrics() {
 cpu_mili_avg_istio_proxy_fortioserver,cpu_mili_avg_istio_proxy_istio-ingressgateway,mem_Mi_avg_istio_proxy_fortioclient,\
 mem_Mi_avg_istio_proxy_fortioserver,mem_Mi_avg_istio_proxy_istio-ingressgateway
 
-  # gsutil -q cp "${CSV_OUTPUT}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/benchmark.csv"
 }
 
 function run_benchmark_test() {
@@ -290,8 +288,8 @@ function collect_envoy_info() {
   FILE_SUFFIX=${3}
 
   ENVOY_DUMP_NAME="${LOAD_GEN_TYPE}_${POD_NAME}_${CONFIG_NAME}_${FILE_SUFFIX}.yaml"
+  echo "storing envoy info in $ENVOY_DUMP_NAME"
   kubectl exec -n "${NAMESPACE}" "${POD_NAME}" -c istio-proxy -- curl http://localhost:15000/"${FILE_SUFFIX}" > "${ENVOY_DUMP_NAME}"
-  # gsutil -q cp -r "${ENVOY_DUMP_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/${FILE_SUFFIX}/${ENVOY_DUMP_NAME}"
 }
 
 function collect_config_dump() {
@@ -308,11 +306,10 @@ function collect_pod_spec() {
   POD_NAME=${1}
   POD_SPEC_NAME="${LOAD_GEN_TYPE}_${POD_NAME}.yaml"
   kubectl get pods "${POD_NAME}" -n "${NAMESPACE}" -o yaml > "${POD_SPEC_NAME}"
-  # gsutil -q cp -r "${POD_SPEC_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/pod_spec/${POD_SPEC_NAME}"
 }
 
 # install tools for profiling
-apt-get update && apt-get -y install linux-tools-generic
+# apt-get update && apt-get -y install linux-tools-generic
 
 # Start run perf test
 # echo "Start to run perf benchmark test, all collected data will be dumped to GCS bucket: ${GCS_BUCKET}/${OUTPUT_DIR}"
@@ -347,12 +344,6 @@ for dir in "${CONFIG_DIR}"/*; do
         DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
       fi
     popd
-    #   if [[ ${ISTIO_RELEASE_VERSION} ]]; then
-    #     VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-    #   else
-    #     DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-    #   fi
-    # popd
 
     # Custom pre-run
     # if [[ -e "./prerun.sh" ]]; then
