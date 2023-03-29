@@ -34,6 +34,7 @@ require (
 )
 
 require (
+<<<<<<< Updated upstream
 	cloud.google.com/go v0.110.0 // indirect
 	cloud.google.com/go/compute v1.19.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
@@ -132,4 +133,11 @@ require (
 	k8s.io/kube-openapi v0.0.0-20230308215209-15aac26d736a // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
+=======
+	github.com/cncf/xds/go v0.0.0-20211130200136-a8f946100490 // indirect
+	github.com/envoyproxy/protoc-gen-validate v0.6.2 // indirect
+	github.com/montanaflynn/stats v0.0.0-20180911141734-db72e6cae808 // indirect
+	github.com/shogo82148/go-shuffle v0.0.0-20180218125048-27e6095f230d // indirect
+	gonum.org/v1/netlib v0.0.0-20191031114514-eccb95939662 // indirect
+>>>>>>> Stashed changes
 )

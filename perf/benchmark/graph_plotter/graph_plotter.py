@@ -16,7 +16,10 @@ import sys
 import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import matplotlib.axes as axes
+import numpy as np
+import random
+import math
 
 metric_dict = {"cpu-client": "cpu_mili_avg_istio_proxy_fortioclient",
                "cpu-server": "cpu_mili_avg_istio_proxy_fortioserver",
@@ -38,15 +41,30 @@ def plotter(args):
 
     dpi = 100
     plt.figure(figsize=(1138 / dpi, 871 / dpi), dpi=dpi)
-    for key, val in telemetry_modes_y_data.items():
-        plt.plot(args.query_list, val, marker='o', label=key)
+    maxVal=0
+    for index, (key, val) in enumerate(telemetry_modes_y_data.items()):
+        if val[index] is not None:
+            maxVal=max(*[v for v in val if v is not None],maxVal)
+        plt.plot(np.arange(6), val, marker='o', label=key)
+        ax=plt.gca()
+        ax.xaxis.set_ticks(np.arange(6))
+        ax.xaxis.set_ticklabels(args.query_list)
+        z=random.uniform(-0.2,0.2)
+        for x,y in zip(np.arange(6), val):
+            if y is None or x is None:
+                continue
+            ax.annotate(y, xy=(x,y+index%3*z)) 
+    box=ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
     plt.xlabel(get_x_label(args))
     plt.ylabel(get_y_label(args))
-    plt.legend()
+    plt.ylim(0,maxVal+1)
     plt.grid()
+    plt.title(args.graph_type)
     plt.savefig(args.graph_title, dpi=dpi)
-    plt.show()
+    # plt.show()
 
 
 # Helpers
@@ -82,6 +100,7 @@ def get_constructed_query_str(args):
 
 
 def get_metric_name(args):
+    print(args)
     if args.graph_type.startswith("latency"):
         return args.graph_type.split("-")[1]
     return metric_dict[args.graph_type]
@@ -112,13 +131,13 @@ def get_x_label(args):
     if args.x_axis == "qps":
         return "QPS"
     if args.x_axis == "conn":
-        return "Connections"
+        return "Client Connections"
     return ""
 
 
 def get_y_label(args):
     if args.graph_type.startswith("latency"):
-        return 'Latency in milliseconds'
+        return 'Latency'
     if args.graph_type.startswith("cpu"):
         return 'istio-proxy average CPUs (milliseconds)'
     if args.graph_type.startswith("mem"):
