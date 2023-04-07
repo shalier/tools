@@ -23,16 +23,16 @@ WD=$(cd "${WD}"; pwd)
 # shellcheck disable=SC2164
 cd "${WD}"
 
-NAMESPACE="${NAMESPACE:-twopods}"
+NAMESPACE="${NAMESPACE:-test}"
 LOAD_GEN_TYPE="${LOAD_GEN_TYPE:-fortio}"
-DNS_DOMAIN=${DNS_DOMAIN:?"DNS_DOMAIN should be like v104.qualistio.org or local"}
+DNS_DOMAIN=fake-dns.org #${DNS_DOMAIN:?"DNS_DOMAIN should be like v104.qualistio.org or local"}
 DNS_POD="${DNS_POD:-kube-dns}"
 DNS_SVC="${DNS_SVC:-kube-dns}"
 TMPDIR=${TMPDIR:-${WD}/tmp}
 RBAC_ENABLED="false"
 SERVER_REPLICA="${SERVER_REPLICA:-1}"
 CLIENT_REPLICA="${CLIENT_REPLICA:-1}"
-ISTIO_INJECT="${ISTIO_INJECT:-false}"
+ISTIO_INJECT="${ISTIO_INJECT:-true}"
 LINKERD_INJECT="${LINKERD_INJECT:-disabled}"
 INTERCEPTION_MODE="${INTERCEPTION_MODE:-REDIRECT}"
 FORTIO_SERVER_INGRESS_CERT_ENABLED="${FORTIO_SERVER_INGRESS_CERT_ENABLED:-false}"
@@ -99,9 +99,9 @@ fi
 
 if [[ "$FORTIO_SERVER_INGRESS_CERT_ENABLED" == "true" ]]
 then
-  openssl req -x509 -newkey rsa:2048 -days 3650 -nodes -subj "/CN=istio-ingressgateway.istio-system.svc.cluster.local" -addext "subjectAltName = DNS:istio-ingressgateway.istio-system.svc.cluster.local" -keyout "${TMPDIR}/istio-ingressgateway.istio-system.svc.cluster.local.key" -out "${TMPDIR}/istio-ingressgateway.istio-system.svc.cluster.local.crt"
-  kubectl create -n istio-system secret tls fortio-server-ingress-cert --key="${TMPDIR}/istio-ingressgateway.istio-system.svc.cluster.local.key" --cert="${TMPDIR}/istio-ingressgateway.istio-system.svc.cluster.local.crt"
-  kubectl create -n "${NAMESPACE}" secret tls fortio-server-ingress-cert --key="${TMPDIR}/istio-ingressgateway.istio-system.svc.cluster.local.key" --cert="${TMPDIR}/istio-ingressgateway.istio-system.svc.cluster.local.crt"
+  openssl req -x509 -newkey rsa:2048 -days 3650 -nodes -subj "/CN=istio-ingressgateway.aks-istio-system.svc.cluster.local" -addext "subjectAltName = DNS:istio-ingressgateway.aks-istio-system.svc.cluster.local" -keyout "${TMPDIR}/istio-ingressgateway.aks-istio-system.svc.cluster.local.key" -out "${TMPDIR}/istio-ingressgateway.aks-istio-system.svc.cluster.local.crt"
+  kubectl create -n aks-istio-system secret tls fortio-server-ingress-cert --key="${TMPDIR}/istio-ingressgateway.aks-istio-system.svc.cluster.local.key" --cert="${TMPDIR}/istio-ingressgateway.aks-istio-system.svc.cluster.local.crt"
+  kubectl create -n "${NAMESPACE}" secret tls fortio-server-ingress-cert --key="${TMPDIR}/istio-ingressgateway.aks-istio-system.svc.cluster.local.key" --cert="${TMPDIR}/istio-ingressgateway.aks-istio-system.svc.cluster.local.crt"
 fi
 
 setup_test

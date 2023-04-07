@@ -16,9 +16,9 @@
 
 if [[ -z "${GATEWAY_URL:-}" ]];then
   if [[ -z "${GATEWAY_SERVICE_NAME:-}" ]];then
-    GATEWAY_URL=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+    GATEWAY_URL=$(kubectl -n aks-istio-ingress get service aks-istio-ingressgateway-internal -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
   else
-    GATEWAY_URL=$(kubectl -n istio-system get service "${GATEWAY_SERVICE_NAME}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+    GATEWAY_URL=$(kubectl -n aks-istio-ingress get service "${GATEWAY_SERVICE_NAME}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
   fi
 fi
 
@@ -68,7 +68,7 @@ function run_test() {
 function start_servicegraphs() {
   local nn=${1:?"number of namespaces"}
   local min=${2:-"0"}
-  local injection_label=${3:-"istio-injection=enabled"}
+  local injection_label=${3:-"istio.io/rev=asm-1-17"}
   local PERF_NAMESPACE_DELAY=${4:-30}
 
    # shellcheck disable=SC2004

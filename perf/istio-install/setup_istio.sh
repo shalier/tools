@@ -29,12 +29,25 @@ case "${OSTYPE}" in
 esac
 
 IOPS="${IOPS:-istioctl_profiles/long-running.yaml,istioctl_profiles/long-running-gateway.yaml}"
+OUT_FILE="istio-${DEV_VERSION}"
+RELEASE_URL="https://storage.googleapis.com/istio-build/dev/${DEV_VERSION}/istio-${DEV_VERSION}-${ARCH_SUFFIX}.tar.gz"
+
+function download_release() {
+  outfile="${DIRNAME}/${OUT_FILE}"
+  if [[ ! -d "${outfile}" ]]; then
+    tmp=$(mktemp -d)
+    curl -fJLs -o "${tmp}/out.tar.gz" "${RELEASE_URL}"
+    tar xvf "${tmp}/out.tar.gz" -C "${DIRNAME}"
+  else
+    echo "${outfile} already exists, skipping download"
+  fi
+}
 
 function install_istioctl() {
   release=${1:?release folder}
   shift
   for i in ${IOPS//,/ }; do
-    istioctl install --skip-confirmation -d "${release}/manifests" -f "${i}" "${@}"
+    "${release}/bin/istioctl" install --skip-confirmation -d "${release}/manifests" -f "${i}" "${@}"
   done
 }
 
@@ -66,15 +79,15 @@ function install_extras() {
   fi
 
   # deploy grafana
-  kubectl apply -f "${WD}/addons/grafana.yaml" -n istio-system
+  kubectl apply -f "${release}/samples/addons/grafana.yaml" -n istio-system
   kubectl apply -f "${WD}/addons/grafana-cm.yaml" -n istio-system # override just the configmap
   kubectl rollout restart deployment grafana -n istio-system # restart to ensure it picks up our new configmap
 }
 
 if [[ -z "${SKIP_INSTALL}" ]];then
   if [[ -z "${LOCAL_ISTIO_PATH}" ]];then
-    # download_release
-    # install_istioctl "${DIRNAME}/${OUT_FILE}" "${@}"
+    download_release
+    install_istioctl "${DIRNAME}/${OUT_FILE}" "${@}"
 
     if [[ -z "${SKIP_EXTRAS:-}" ]]; then
       install_extras

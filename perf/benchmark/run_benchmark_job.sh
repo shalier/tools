@@ -50,7 +50,7 @@ export OWNER="${OWNER:-perf-tests}"
 export CREATE_CLUSTER="${CREATE_CLUSTER:-false}"
 export TAG="latest"
 # Istio performance test related Env vars
-export NAMESPACE=${NAMESPACE:-'twopods-istio'}
+export NAMESPACE=${NAMESPACE:-'test'}
 export PROMETHEUS_NAMESPACE=${PROMETHEUS_NAMESPACE:-'aks-istio-system'}
 export ISTIO_INJECT=${ISTIO_INJECT:-true}
 export DNS_DOMAIN="fake-dns.org"
@@ -59,21 +59,18 @@ export FORTIO_CLIENT_URL=${FORTIO_CLIENT_URL:-"http://20.81.52.30:9076"}
 export PROMETHEUS_URL=http://localhost:9090
 export IOPS=${IOPS:-istioctl_profiles/default-overlay.yaml}
 export ISTIO_RELEASE_VERSION="${ISTIO_RELEASE_VERSION:-}"
-# For adding or modifying configurations, refer to perf/benchmark/README.md
-export CONFIG_DIR=${CONFIG_DIR:-"${WD}/configs/istio"}
-export PERF_TEST_CONFIGURATION=${PERF_TEST_CONFIGURATION:-"${WD}/configs/run_perf_test.conf"}
-echo $PERF_TEST_CONFIGURATION
 # For enabling fortio server ingress cert for testing with TLS
 export FORTIO_SERVER_INGRESS_CERT_ENABLED="${FORTIO_SERVER_INGRESS_CERT_ENABLED:-false}"
-
+export CLUSTER_LABEL="${CLUSTER_LABEL:-"cluster-label"}"
 # Other Env vars
 # export GCS_BUCKET=${GCS_BUCKET:-"istio-build/perf"}
 export TRIALRUN=${TRIALRUN:-"False"}
+export VERSION=${VERSION:-"latest"}
+INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${VERSION}")
 
-INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/latest")
-pushd "${ROOT}/istio-install"
-   DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh -f istioctl_profiles/default-overlay.yaml
-popd
+# pushd "${ROOT}/istio-install"
+#    DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh -f istioctl_profiles/default-overlay.yaml
+# popd
 
 CLEANUP_PIDS=()
 
@@ -81,10 +78,10 @@ CLEANUP_PIDS=()
 # shellcheck disable=SC1090,SC1091
 # source "${ROOT}/../bin/setup_cluster.sh"
 # setup_e2e_cluster
-export KUBECONFIG="${WD}/tmp/kube.yaml"
-pushd "${ROOT}/istio-install"
-  ./cluster.sh create
-popd
+# export KUBECONFIG="${WD}/tmp/kube.yaml"
+# pushd "${ROOT}/istio-install"
+#   ./cluster.sh create
+# popd
 # Step 1: setup/create cluster
 # if [[ "${CREATE_CLUSTER}" == "true" ]]; then
 #   export KUBECONFIG="${WD}/tmp/kube.yaml"
@@ -116,6 +113,10 @@ popd
 #     echo "Setup istio release: ${INSTALL_VERSION}"
 #     DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh
 #   fi
+# Step 3: setup Istio performance test
+# pushd "${WD}"
+export ISTIO_INJECT="true"
+./setup_test.sh
 # popd
 
 # # Step 4: install Python dependencies
@@ -145,8 +146,9 @@ mkdir -p "${LOCAL_OUTPUT_DIR}"
 
 # Step 6: setup fortio and prometheus
 function setup_fortio_and_prometheus() {
+    kubectl apply -f ../istio-install/base/templates/prometheus.yaml -n "${PROMETHEUS_NAMESPACE}"
     # shellcheck disable=SC2155
-    INGRESS_IP="$(kubectl get services -n "${NAMESPACE}" fortioclient -o jsonpath="{.status.loadBalancer.ingress[0].ip}")"
+    INGRESS_IP="$(kubectl get services -n ${NAMESPACE} fortioclient -o jsonpath="{.status.loadBalancer.ingress[0].ip}")"
     local report_port="8080"
     if [[ "${LOAD_GEN_TYPE}" == "nighthawk" ]]; then
         report_port="9076"
@@ -175,19 +177,6 @@ setup_fortio_and_prometheus
 function unsetup_clusters() {
   # use current-context if pilot_cluster not set
   PILOT_CLUSTER="${PILOT_CLUSTER:-$(kubectl config current-context)}"
-
-  unset IFS
-  k_contexts=$(kubectl config get-contexts -o name)
-  for context in ${k_contexts}; do
-     kubectl config use-context "${context}"
-
-     kubectl delete clusterrolebinding prow-cluster-admin-binding 2>/dev/null
-     if [[ "${SETUP_CLUSTERREG}" == "True" && "${PILOT_CLUSTER}" != "$context" ]]; then
-        kubectl delete clusterrolebinding istio-multi-test 2>/dev/null
-        kubectl delete ns ${SA_NAMESPACE} 2>/dev/null
-     fi
-  done
-  kubectl config use-context "${PILOT_CLUSTER}"
 }
 
 function mason_cleanup() {
@@ -243,15 +232,9 @@ trap exit_handling ERR
 trap exit_handling EXIT
 
 # Step 8: run Istio performance test
-# Helper functions
-# function collect_flame_graph() {
-#     FLAME_OUTPUT_DIR="${WD}/flame/flameoutput"
-#     # gsutil -q cp -r "${FLAME_OUTPUT_DIR}/*.svg" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/flamegraphs" || true
-# }
-
 function collect_metrics() {
   # shellcheck disable=SC2155
-  export CSV_OUTPUT="$(mktemp /tmp/${OUTPUT_DIR}/benchmark_XXXX)"
+  export CSV_OUTPUT="$(mktemp /tmp/${CLUSTER_LABEL}/benchmark_XXXX)"
   pipenv run python3 fortio.py "${FORTIO_CLIENT_URL}" --csv_output="$CSV_OUTPUT" --prometheus=${PROMETHEUS_URL} \
    --csv StartTime,ActualDuration,Labels,NumThreads,ActualQPS,p50,p90,p99,p999,cpu_mili_avg_istio_proxy_fortioclient,\
 cpu_mili_avg_istio_proxy_fortioserver,cpu_mili_avg_istio_proxy_istio-ingressgateway,mem_Mi_avg_istio_proxy_fortioclient,\
@@ -289,7 +272,8 @@ function collect_envoy_info() {
 
   ENVOY_DUMP_NAME="${LOAD_GEN_TYPE}_${POD_NAME}_${CONFIG_NAME}_${FILE_SUFFIX}.yaml"
   echo "storing envoy info in $ENVOY_DUMP_NAME"
-  kubectl exec -n "${NAMESPACE}" "${POD_NAME}" -c istio-proxy -- curl http://localhost:15000/"${FILE_SUFFIX}" > "${ENVOY_DUMP_NAME}"
+  istioctl proxy-config all -oyaml "${POD_NAME}"."${NAMESPACE}"> "${ENVOY_DUMP_NAME}"
+  # kubectl exec -n "${NAMESPACE}" "${POD_NAME}" -c istio-proxy -- curl http://localhost:15000/"${FILE_SUFFIX}" > "${ENVOY_DUMP_NAME}"
 }
 
 function collect_config_dump() {
@@ -308,14 +292,12 @@ function collect_pod_spec() {
   kubectl get pods "${POD_NAME}" -n "${NAMESPACE}" -o yaml > "${POD_SPEC_NAME}"
 }
 
-# install tools for profiling
-# apt-get update && apt-get -y install linux-tools-generic
-
 # Start run perf test
-# echo "Start to run perf benchmark test, all collected data will be dumped to GCS bucket: ${GCS_BUCKET}/${OUTPUT_DIR}"
+echo "Start to run perf benchmark test"
+CONFIG_DIR="${WD}/configs/istio"
 
 # Read through perf test configuration file to determine which group of test configuration to run or not run
-read_perf_test_conf "${PERF_TEST_CONFIGURATION}"  
+read_perf_test_conf "${WD}/configs/run_perf_test.conf"
 
 for dir in "${CONFIG_DIR}"/*; do
     # Get the last directory name after splitting dir path by '/', which is the configuration dir name
@@ -353,7 +335,7 @@ for dir in "${CONFIG_DIR}"/*; do
 
     # TRIALRUN as a pre-submit check, only run agaist the first set of enabled perf run in the perf_conf file
     if [[ "${TRIALRUN}" == "True" ]]; then
-       run_benchmark_test "${WD}/configs/trialrun.yaml"
+      run_benchmark_test "${WD}/configs/trialrun.yaml"
        break
     fi
 
@@ -367,10 +349,12 @@ for dir in "${CONFIG_DIR}"/*; do
     # Run test and collect data
     if [[ -e "./cpu_mem.yaml" ]]; then
        run_benchmark_test "${dir}/cpu_mem.yaml"
+       echo Running cpu mem
     fi
 
     if [[ -e "./latency.yaml" ]]; then
        run_benchmark_test "${dir}/latency.yaml"
+       echo Running latency
     fi
 
     # Collect clusters info after test run and before cleanup postrun.sh run
@@ -381,9 +365,6 @@ for dir in "${CONFIG_DIR}"/*; do
     #    # shellcheck disable=SC1091
     #    source postrun.sh
     # fi
-
-    # collect_flame_graph
-    # TODO: can be added to shared_postrun.sh
 
     # restart proxy after each group
     kubectl exec -n "${NAMESPACE}" "${FORTIO_CLIENT_POD}" -c istio-proxy -- curl http://localhost:15000/quitquitquit -X POST

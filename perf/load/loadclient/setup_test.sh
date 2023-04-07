@@ -20,10 +20,9 @@ WD=$(cd "${WD}"; pwd)
 cd "${WD}"
 
 set -ex
-
 NAMESPACE=${1:?"namespace"}
-NAMEPREFIX=${2:?"prefix name for service. typically svc-"}
-INJECTION_LABEL=${3:-"istio-injection=enabled"}
+NAMEPREFIX=${2:?"svc-"}
+INJECTION_LABEL=${3:-"istio.io/rev=asm-1-17"}
 
 HTTPS=${HTTPS:-"false"}
 
@@ -32,9 +31,9 @@ HTTPS=${HTTPS:-"false"}
 
 if [[ -z "${GATEWAY_URL:-}" ]];then
   if [[ -z "${GATEWAY_SERVICE_NAME:-}" ]];then
-    GATEWAY_URL=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+    GATEWAY_URL=$(kubectl -n aks-istio-ingress get service aks-istio-ingressgateway-internal -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
   else
-    GATEWAY_URL=$(kubectl -n istio-system get service "${GATEWAY_SERVICE_NAME}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+    GATEWAY_URL=$(kubectl -n aks-istio-ingress get service "${GATEWAY_SERVICE_NAME}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
   fi
 fi
 
