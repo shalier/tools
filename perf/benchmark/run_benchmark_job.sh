@@ -59,8 +59,9 @@ export FORTIO_SERVER_INGRESS_CERT_ENABLED="${FORTIO_SERVER_INGRESS_CERT_ENABLED:
 
 # Other Env vars
 export TRIALRUN=${TRIALRUN:-"False"}
+export VERSION=${VERSION:-"latest"}
+INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${VERSION}")
 
-INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/latest")
 pushd "${ROOT}/istio-install"
    DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh -f istioctl_profiles/default-overlay.yaml
 popd
@@ -183,12 +184,6 @@ trap exit_handling ERR
 trap exit_handling EXIT
 
 # Step 8: run Istio performance test
-# Helper functions
-# function collect_flame_graph() {
-#     FLAME_OUTPUT_DIR="${WD}/flame/flameoutput"
-#     # gsutil -q cp -r "${FLAME_OUTPUT_DIR}/*.svg" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/flamegraphs" || true
-# }
-
 function collect_metrics() {
   # shellcheck disable=SC2155
   export CSV_OUTPUT="$(mktemp /tmp/benchmark_XXXX)"
@@ -248,9 +243,6 @@ function collect_pod_spec() {
   kubectl get pods "${POD_NAME}" -n "${NAMESPACE}" -o yaml > "${POD_SPEC_NAME}"
 }
 
-# install tools for profiling
-# apt-get update && apt-get -y install linux-tools-generic
-
 # Start run perf test
 echo "Start to run perf benchmark test"
 
@@ -272,11 +264,7 @@ for dir in "${CONFIG_DIR}"/*; do
        extra_overlay="-f ${dir}/installation.yaml"
     fi
     pushd "${ROOT}/istio-install"
-      if [[ ${ISTIO_RELEASE_VERSION} ]]; then
-        VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-      else
-        DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-      fi
+      DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
     popd
 
     # Custom pre-run
@@ -315,9 +303,6 @@ for dir in "${CONFIG_DIR}"/*; do
        # shellcheck disable=SC1091
        source postrun.sh
     fi
-
-    # collect_flame_graph
-    # TODO: can be added to shared_postrun.sh
 
     # restart proxy after each group
     kubectl exec -n "${NAMESPACE}" "${FORTIO_CLIENT_POD}" -c istio-proxy -- curl http://localhost:15000/quitquitquit -X POST
