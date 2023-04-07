@@ -28,7 +28,7 @@ source common.sh
 
 NUM=${1:?"number of namespaces. 20 x this number"}
 START=${2:-"0"}
-INJECTION_LABEL=${3:-"istio-injection=enabled"}
+INJECTION_LABEL=${3:-"istio.io/rev=asm-1-17"}
 PERF_NAMESPACE_DELAY=${4:-30}
 
 start_servicegraphs "${NUM}" "${START}" "${INJECTION_LABEL}" "${PERF_NAMESPACE_DELAY}"

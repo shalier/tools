@@ -6,6 +6,6 @@ spec:
   egress:
   - hosts:
     - "./*"
-    - "istio-system/*"
+    - "aks-istio-system/*"
     - "istio-telemetry/*"
     - "istio-policy/*"

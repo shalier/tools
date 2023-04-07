@@ -32,7 +32,7 @@ from subprocess import getoutput
     min, max, p50, p75, p90, p99, p999
 """
 
-NAMESPACE = os.environ.get("NAMESPACE", "twopods-istio")
+NAMESPACE = os.environ.get("NAMESPACE", "test")
 
 
 def convert_data(data):

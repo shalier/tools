@@ -10,6 +10,11 @@ qps:
     - 400
     - 800
     - 1000
+    - 1200
+    - 1400
+    - 1600
+    - 1800
+    - 2000
 duration: 240
 perf_record: false
 run_bothsidecar: true
@@ -17,7 +22,6 @@ run_serversidecar: false
 run_clientsidecar: false
 run_baseline: true
 
-extra_labels: "mtls"
+extra_labels: "no_jitter"
 
-jitter: true
-protocol_mode: tcp
+jitter: false

@@ -1,0 +1,53 @@
+---
+# Source: loadclient/templates/load_gen.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: client
+  name: client
+spec:
+  ports:
+  - port: 8080
+  selector:
+    app: client
+---
+# Source: loadclient/templates/load_gen.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: client
+  name: client
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+      annotations:
+        sidecar.istio.io/inject: "false"
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+      - args:
+        - load
+        - -c
+        - "8"
+        - -qps
+        - "50"
+        - -t
+        - "0"
+        - -r
+        - "0.0001"
+        - -H
+        - "Host: svc-0.local"
+        - "http://10.224.88.0/"
+        image: fortio/fortio
+        name: fortio
+        ports:
+        - containerPort: 8080
+        - containerPort: 42422

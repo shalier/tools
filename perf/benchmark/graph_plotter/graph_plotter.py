@@ -43,10 +43,13 @@ def plotter(args):
 
     dpi = 100
     plt.figure(figsize=(1138 / dpi, 871 / dpi), dpi=dpi)
-    maxVal=0
+    maxVal=1
     for index, (key, val) in enumerate(telemetry_modes_y_data.items()):
-        if val[index] is not None:
-            maxVal=max(*[v for v in val if v is not None],maxVal)
+        print("index",index,"key",key,"val",val)
+        maxVal=max(max(val),maxVal)
+        # print("index",index,"key",key,"val",val,maxVal)
+        # if val[index] is not None:
+        #     maxVal=max(*[v for v in val if v is not None],maxVal)
         plt.plot(np.arange(6), val, marker='o', label=key)
         ax=plt.gca()
         ax.xaxis.set_ticks(np.arange(6))
@@ -72,7 +75,7 @@ def plotter(args):
 # Helpers
 def check_if_args_provided(args):
     args_all_provided = True
-    # print(vars(args))
+    print(vars(args))
     for _, val in vars(args).items():
         if val == "":
             print("Warning: There is at least one argument that you did not specify with a value.\n")
@@ -139,7 +142,7 @@ def get_x_label(args):
 
 def get_y_label(args):
     if args.graph_type.startswith("latency"):
-        return 'Latency'
+        return 'Latency (ms)'
     if args.graph_type.startswith("cpu"):
         return 'istio-proxy average CPUs (milliseconds)'
     if args.graph_type.startswith("mem"):

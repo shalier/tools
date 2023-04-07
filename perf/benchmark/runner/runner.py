@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 import yaml
 from fortio import METRICS_START_SKIP_DURATION, METRICS_END_SKIP_DURATION
 
-NAMESPACE = os.environ.get("NAMESPACE", "twopods-istio")
+NAMESPACE = os.environ.get("NAMESPACE", "test")
 NIGHTHAWK_GRPC_SERVICE_PORT_FORWARD = 9999
 POD = collections.namedtuple('Pod', ['name', 'namespace', 'ip', 'labels'])
 NIGHTHAWK_DOCKER_IMAGE = "envoyproxy/nighthawk-dev:59683b759eb8f8bd8cce282795c08f9e2b3313d4"
@@ -39,20 +39,25 @@ processes = []
 
 
 def pod_info(filterstr="", namespace=NAMESPACE, multi_ok=True):
+    output=subprocess.check_output(['kubectl', '-n', namespace, 'get', 'pod', filterstr, '-o', 'json'])
     cmd = "kubectl -n {namespace} get pod {filterstr} -o json".format(
         namespace=namespace, filterstr=filterstr)
-    completed_process = subprocess.run(shlex.split(cmd), check=True, encoding="utf-8")
-    o = json.loads(completed_process.stdout)
+    # print("output",output)
+    # print(cmd)
+    # completed_process = subprocess.Popen(shlex.split(cmd), check=True, encoding="utf-8")
+    # print(completed_process.communicate())
+    # print(completed_process.stdout)
+    o = json.loads(output)
     items = o['items']
 
-    if completed_process.stderr:
-        print("stderr while getting pod info: %s" % completed_process.stderr)
+    # if completed_process.stderr:
+    #     print("stderr while getting pod info: %s" % completed_process.stderr)
 
-    if not multi_ok and len(items) > 1:
-        raise Exception("more than one pod found stdout='%s'" % completed_process.stdout)
+    # if not multi_ok and len(items) > 1:
+    #     raise Exception("more than one pod found stdout='%s'" % completed_process.stdout)
 
-    if not items:
-        raise Exception("no pods found with command [%s]" % cmd)
+    # if not items:
+        # raise Exception("no pods found with command [%s]" % cmd)
 
     i = items[0]
     return POD(i['metadata']['name'], i['metadata']['namespace'],
@@ -140,7 +145,7 @@ class Fortio:
         self.protocol_mode = protocol_mode
         self.ns = NAMESPACE
         # bucket resolution in seconds
-        self.r = "0.001"
+        self.r = "0.000001"
         self.telemetry_mode = telemetry_mode
         self.perf_record = perf_record
         self.server = pod_info("-lapp=" + server, namespace=self.ns)
@@ -281,53 +286,53 @@ class Fortio:
 
         return fortio_cmd
 
-    def generate_nighthawk_cmd(self, cpus, conn, qps, jitter_uniform, duration, labels):
-        labels = "nighthawk_" + labels
-        nighthawk_args = [
-            "nighthawk_client",
-            "--concurrency {cpus}",
-            "--output-format json",
-            "--prefetch-connections",
-            "--open-loop",
-            "--experimental-h1-connection-reuse-strategy lru",
-            "--experimental-h2-use-multiple-connections",
-            "--connections {conn}",
-            "--rps {qps}",
-            "--duration {duration}",
-            "--request-header \"x-nighthawk-test-server-config: {{response_body_size:{size}}}\""
-        ]
+    # def generate_nighthawk_cmd(self, cpus, conn, qps, jitter_uniform, duration, labels):
+    #     labels = "nighthawk_" + labels
+    #     nighthawk_args = [
+    #         "nighthawk_client",
+    #         "--concurrency {cpus}",
+    #         "--output-format json",
+    #         "--prefetch-connections",
+    #         "--open-loop",
+    #         "--experimental-h1-connection-reuse-strategy lru",
+    #         "--experimental-h2-use-multiple-connections",
+    #         "--connections {conn}",
+    #         "--rps {qps}",
+    #         "--duration {duration}",
+    #         "--request-header \"x-nighthawk-test-server-config: {{response_body_size:{size}}}\""
+    #     ]
 
-        if jitter_uniform:
-            nighthawk_args.append("--jitter-uniform {jitter_uniform}s")
+    #     if jitter_uniform:
+    #         nighthawk_args.append("--jitter-uniform {jitter_uniform}s")
 
-        # Our "gRPC" mode actually means:
-        #  - https (see get_protocol_uri_fragment())
-        #  - h2
-        #  - with long running connections
-        #  - Also transfer request body sized according to "size".
-        if self.protocol_mode == "grpc":
-            nighthawk_args.append("--h2")
-            if self.size:
-                nighthawk_args.append(
-                    "--request-header \"content-length: {size}\"")
+    #     # Our "gRPC" mode actually means:
+    #     #  - https (see get_protocol_uri_fragment())
+    #     #  - h2
+    #     #  - with long running connections
+    #     #  - Also transfer request body sized according to "size".
+    #     if self.protocol_mode == "grpc":
+    #         nighthawk_args.append("--h2")
+    #         if self.size:
+    #             nighthawk_args.append(
+    #                 "--request-header \"content-length: {size}\"")
 
-        # Note: Labels is the last arg, and there's stuff depending on that.
-        # watch out when moving it.
-        nighthawk_args.append("--label {labels}")
+    #     # Note: Labels is the last arg, and there's stuff depending on that.
+    #     # watch out when moving it.
+    #     nighthawk_args.append("--label {labels}")
 
-        # As the worker count acts as a multiplier, we divide by qps/conn by the number of cpu's to spread load across
-        # the workers so the sum of the workers will target the global qps/connection levels.
-        nighthawk_cmd = " ".join(nighthawk_args).format(
-            conn=round(conn / cpus),
-            qps=round(qps / cpus),
-            duration=duration,
-            jitter_uniform=jitter_uniform,
-            labels=labels,
-            size=self.size,
-            cpus=cpus,
-            port_forward=NIGHTHAWK_GRPC_SERVICE_PORT_FORWARD)
+    #     # As the worker count acts as a multiplier, we divide by qps/conn by the number of cpu's to spread load across
+    #     # the workers so the sum of the workers will target the global qps/connection levels.
+    #     nighthawk_cmd = " ".join(nighthawk_args).format(
+    #         conn=round(conn / cpus),
+    #         qps=round(qps / cpus),
+    #         duration=duration,
+    #         jitter_uniform=jitter_uniform,
+    #         labels=labels,
+    #         size=self.size,
+    #         cpus=cpus,
+    #         port_forward=NIGHTHAWK_GRPC_SERVICE_PORT_FORWARD)
 
-        return nighthawk_cmd
+    #     return nighthawk_cmd
 
     def run(self, headers, conn, qps, size, duration):
         labels = self.generate_test_labels(conn, qps, size)
@@ -350,22 +355,22 @@ class Fortio:
         if self.load_gen_type == "fortio":
             load_gen_cmd = self.generate_fortio_cmd(headers_cmd, conn, qps, duration, grpc, cacert_arg, self.jitter,
                                                     self.uniform, self.nocatchup, self.keepalive, connection_reuse_arg, labels)
-        elif self.load_gen_type == "nighthawk":
-            # TODO(oschaaf): Figure out how to best determine the right concurrency for Nighthawk.
-            # Results seem to get very noisy as the number of workers increases, are the clients
-            # and running on separate sets of vCPU cores? nproc yields the same concurrency as goprocs
-            # use with the Fortio version.
-            # client_cpus = int(run_command_sync(
-            #     "kubectl exec -n \"{ns}\" svc/fortioclient -c shell nproc".format(ns=NAMESPACE)))
-            # print("Client pod has {client_cpus} cpus".format(client_cpus=client_cpus))
+        # elif self.load_gen_type == "nighthawk":
+        #     # TODO(oschaaf): Figure out how to best determine the right concurrency for Nighthawk.
+        #     # Results seem to get very noisy as the number of workers increases, are the clients
+        #     # and running on separate sets of vCPU cores? nproc yields the same concurrency as goprocs
+        #     # use with the Fortio version.
+        #     # client_cpus = int(run_command_sync(
+        #     #     "kubectl exec -n \"{ns}\" svc/fortioclient -c shell nproc".format(ns=NAMESPACE)))
+        #     # print("Client pod has {client_cpus} cpus".format(client_cpus=client_cpus))
 
-            # See the comment above, we restrict execution to a single nighthawk worker for
-            # now to avoid noise.
-            workers = 1
-            jitter_uniform = None
-            if self.jitter and qps > 0:
-                jitter_uniform = f"{float(0.1 * 1 / qps):.9f}"  # suppress scientific notation
-            load_gen_cmd = self.generate_nighthawk_cmd(workers, conn, qps, jitter_uniform, duration, labels)
+        #     # See the comment above, we restrict execution to a single nighthawk worker for
+        #     # now to avoid noise.
+        #     workers = 1
+        #     jitter_uniform = None
+        #     if self.jitter and qps > 0:
+        #         jitter_uniform = f"{float(0.1 * 1 / qps):.9f}"  # suppress scientific notation
+        #     load_gen_cmd = self.generate_nighthawk_cmd(workers, conn, qps, jitter_uniform, duration, labels)
 
         if self.run_baseline:
             perf_label = "baseline_perf"
