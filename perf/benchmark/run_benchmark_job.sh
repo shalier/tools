@@ -57,24 +57,24 @@ CLEANUP_PIDS=()
 
 # Step 1: setup cluster
 # shellcheck disable=SC1090,SC1091
-source "${ROOT}/../bin/setup_cluster.sh"
-setup_e2e_cluster
+# source "${ROOT}/../bin/setup_cluster.sh"
+# setup_e2e_cluster
 
 # Step 2: install Istio
 # Setup release info
-BRANCH="latest"
-if [[ "${GIT_BRANCH}" != "master" ]];then
-  BRANCH_NUM=$(echo "$GIT_BRANCH" | cut -f2 -d-)
-  BRANCH="${BRANCH_NUM}-dev"
-fi
+# BRANCH="latest"
+# if [[ "${GIT_BRANCH}" != "master" ]];then
+#   BRANCH_NUM=$(echo "$GIT_BRANCH" | cut -f2 -d-)
+#   BRANCH="${BRANCH_NUM}-dev"
+# fi
 
 # Different branch tag resides in dev release directory like /latest, /1.4-dev, /1.5-dev etc.
-INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${BRANCH}")
-echo "Setup istio release: ${INSTALL_VERSION}"
+# INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${BRANCH}")
+# echo "Setup istio release: ${INSTALL_VERSION}"
 
-pushd "${ROOT}/istio-install"
-   DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh
-popd
+# pushd "${ROOT}/istio-install"
+#    DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh
+# popd
 
 # Step 3: setup Istio performance test
 pushd "${WD}"
@@ -140,7 +140,7 @@ function exit_handling() {
 
   # Copy raw data from fortio client pod
   kubectl --namespace "${NAMESPACE}" cp "${FORTIO_CLIENT_POD}":/var/lib/fortio /tmp/rawdata -c shell
-  gsutil -q cp -r /tmp/rawdata "gs://${GCS_BUCKET}/${OUTPUT_DIR}/rawdata"
+  # gsutil -q cp -r /tmp/rawdata "gs://${GCS_BUCKET}/${OUTPUT_DIR}/rawdata"
 
   # Cleanup cluster resources
   cleanup
@@ -154,7 +154,7 @@ trap exit_handling EXIT
 # Helper functions
 function collect_flame_graph() {
     FLAME_OUTPUT_DIR="${WD}/flame/flameoutput"
-    gsutil -q cp -r "${FLAME_OUTPUT_DIR}/*.svg" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/flamegraphs" || true
+    # gsutil -q cp -r "${FLAME_OUTPUT_DIR}/*.svg" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/flamegraphs" || true
 }
 
 function collect_metrics() {
@@ -165,7 +165,7 @@ function collect_metrics() {
 cpu_mili_avg_istio_proxy_fortioserver,cpu_mili_avg_istio_proxy_istio-ingressgateway,mem_Mi_avg_istio_proxy_fortioclient,\
 mem_Mi_avg_istio_proxy_fortioserver,mem_Mi_avg_istio_proxy_istio-ingressgateway
 
-  gsutil -q cp "${CSV_OUTPUT}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/benchmark.csv"
+  # gsutil -q cp "${CSV_OUTPUT}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/benchmark.csv"
 }
 
 function run_benchmark_test() {
@@ -198,7 +198,7 @@ function collect_envoy_info() {
 
   ENVOY_DUMP_NAME="${LOAD_GEN_TYPE}_${POD_NAME}_${CONFIG_NAME}_${FILE_SUFFIX}.yaml"
   kubectl exec -n "${NAMESPACE}" "${POD_NAME}" -c istio-proxy -- curl http://localhost:15000/"${FILE_SUFFIX}" > "${ENVOY_DUMP_NAME}"
-  gsutil -q cp -r "${ENVOY_DUMP_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/${FILE_SUFFIX}/${ENVOY_DUMP_NAME}"
+  # gsutil -q cp -r "${ENVOY_DUMP_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/${FILE_SUFFIX}/${ENVOY_DUMP_NAME}"
 }
 
 function collect_config_dump() {
@@ -215,14 +215,14 @@ function collect_pod_spec() {
   POD_NAME=${1}
   POD_SPEC_NAME="${LOAD_GEN_TYPE}_${POD_NAME}.yaml"
   kubectl get pods "${POD_NAME}" -n "${NAMESPACE}" -o yaml > "${POD_SPEC_NAME}"
-  gsutil -q cp -r "${POD_SPEC_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/pod_spec/${POD_SPEC_NAME}"
+  # gsutil -q cp -r "${POD_SPEC_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/pod_spec/${POD_SPEC_NAME}"
 }
 
 # install tools for profiling
 apt-get update && apt-get -y install linux-tools-generic
 
 # Start run perf test
-echo "Start to run perf benchmark test, all collected data will be dumped to GCS bucket: ${GCS_BUCKET}/${OUTPUT_DIR}"
+# echo "Start to run perf benchmark test, all collected data will be dumped to GCS bucket: ${GCS_BUCKET}/${OUTPUT_DIR}"
 
 # For adding or modifying configurations, refer to perf/benchmark/README.md
 CONFIG_DIR="${WD}/configs/istio"

@@ -87,7 +87,7 @@ kubectl create ns "${NAMESPACE}" || true
 
 if [[ "$ISTIO_INJECT" == "true" ]]
 then
-  kubectl label namespace "${NAMESPACE}" istio-injection=enabled --overwrite || true
+  kubectl label namespace "${NAMESPACE}" "istio.io/rev"="asm-1-17" --overwrite || true
 fi
 
 if [[ "$LINKERD_INJECT" == "enabled" ]]
