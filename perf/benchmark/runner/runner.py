@@ -396,10 +396,10 @@ class Fortio:
                 process.join()
 
 
-LOCAL_FLAMEDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../flame/")
-PERF_PROXY_FILE = "get_proxy_perf.sh"
-LOCAL_FLAME_PROXY_FILE_PATH = LOCAL_FLAMEDIR + PERF_PROXY_FILE
-LOCAL_FLAMEOUTPUT = LOCAL_FLAMEDIR + "flameoutput/"
+# LOCAL_FLAMEDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../flame/")
+# PERF_PROXY_FILE = "get_proxy_perf.sh"
+# LOCAL_FLAME_PROXY_FILE_PATH = LOCAL_FLAMEDIR + PERF_PROXY_FILE
+# LOCAL_FLAMEOUTPUT = LOCAL_FLAMEDIR + "flameoutput/"
 
 
 def run_perf(pod, labels, duration, frequency):
@@ -409,12 +409,12 @@ def run_perf(pod, labels, duration, frequency):
         frequency = 99
     os.environ["PERF_DATA_FILENAME"] = labels + ".data"
     print(os.environ["PERF_DATA_FILENAME"])
-    exitcode, res = subprocess.getstatusoutput(LOCAL_FLAME_PROXY_FILE_PATH +
-                                               " -p {pod} -n {namespace} -d {duration} -f {frequency}".format(
-                                                   pod=pod, namespace=NAMESPACE, duration=duration, frequency=frequency))
-    # TODO: debug only, update to print output only when the script fail
-    print("run flame graph status: {}".format(exitcode))
-    print("flame graph script output: {}".format(res.strip()))
+    # exitcode, res = subprocess.getstatusoutput(LOCAL_FLAME_PROXY_FILE_PATH +
+    #                                            " -p {pod} -n {namespace} -d {duration} -f {frequency}".format(
+    #                                                pod=pod, namespace=NAMESPACE, duration=duration, frequency=frequency))
+    # # TODO: debug only, update to print output only when the script fail
+    # print("run flame graph status: {}".format(exitcode))
+    # print("flame graph script output: {}".format(res.strip()))
 
 
 def validate_job_config(job_config):

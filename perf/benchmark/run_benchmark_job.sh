@@ -28,12 +28,21 @@ set -x
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 
+while [ $# -gt 0 ] ; do
+  case $1 in
+    -l) label=$2 ;;
+    -h) 'stuff'
+    exit ;;
+  esac
+  shift
+done
+
 # Boskos cluster related Env vars
 # This is the config for postsubmit cluster.
 export VALUES="${VALUES:-values-istio-postsubmit.yaml}"
 # Check https://github.com/istio/test-infra/blob/master/boskos/configs.yaml
 # for existing resources types
-export RESOURCE_TYPE="${RESOURCE_TYPE:-gke-perf-preset}"
+# export RESOURCE_TYPE="${RESOURCE_TYPE:-gke-perf-preset}"
 export PILOT_CLUSTER="${PILOT_CLUSTER:-}"
 export USE_MASON_RESOURCE="${USE_MASON_RESOURCE:-False}"
 export CLEAN_CLUSTERS="${CLEAN_CLUSTERS:-True}"
@@ -41,7 +50,7 @@ export OWNER="${OWNER:-perf-tests}"
 
 # Istio performance test related Env vars
 export NAMESPACE=${NAMESPACE:-'twopods-istio'}
-export PROMETHEUS_NAMESPACE=${PROMETHEUS_NAMESPACE:-'istio-prometheus'}
+export PROMETHEUS_NAMESPACE=${PROMETHEUS_NAMESPACE:-'aks-istio-system'}
 export ISTIO_INJECT=${ISTIO_INJECT:-true}
 export DNS_DOMAIN="fake-dns.org"
 export LOAD_GEN_TYPE=${LOAD_GEN_TYPE:-"fortio"}
@@ -49,7 +58,7 @@ export FORTIO_CLIENT_URL=""
 export IOPS=${IOPS:-istioctl_profiles/default-overlay.yaml}
 
 # Other Env vars
-export GCS_BUCKET=${GCS_BUCKET:-"istio-build/perf"}
+# export GCS_BUCKET=${GCS_BUCKET:-"istio-build/perf"}
 export TRIALRUN=${TRIALRUN:-"False"}
 
 
@@ -84,19 +93,19 @@ popd
 
 # Step 4: install Python dependencies
 # Install pipenv
-if [[ $(command -v pipenv) == "" ]];then
-  apt-get update && apt-get -y install python3-pip
-  pip3 install pipenv
-fi
+# if [[ $(command -v pipenv) == "" ]];then
+#   apt-get update && apt-get -y install python3-pip
+#   pip3 install pipenv
+# fi
 
-# Install dependencies
-cd "${WD}"
-pipenv install
+# # Install dependencies
+# cd "${WD}"
+# pipenv install
 
 # Step 5: setup perf data local output directory
 dt=$(date +'%Y%m%d')
 # Current output dir should be like: 20200523_nighthawk_master_1.7-alpha.f19fb40b777e357b605e85c04fb871578592ad1e
-export OUTPUT_DIR="${dt}_${LOAD_GEN_TYPE}_${GIT_BRANCH}_${INSTALL_VERSION}"
+export OUTPUT_DIR="${label}_${dt}_${LOAD_GEN_TYPE}"
 LOCAL_OUTPUT_DIR="/tmp/${OUTPUT_DIR}"
 mkdir -p "${LOCAL_OUTPUT_DIR}"
 
@@ -109,7 +118,8 @@ function setup_fortio_and_prometheus() {
         report_port="9076"
     fi
 
-    export FORTIO_CLIENT_URL=http://${INGRESS_IP}:${report_port}
+    export FORTIO_CLIENT_URL=http://${INGRESS_IP}:8080
+    #${report_port}
     if [[ -z "$INGRESS_IP" ]];then
         kubectl -n "${NAMESPACE}" port-forward svc/fortioclient ${report_port}:${report_port} &
         CLEANUP_PIDS+=("$!")
@@ -117,7 +127,7 @@ function setup_fortio_and_prometheus() {
     fi
 
     export PROMETHEUS_URL=http://localhost:9090
-    kubectl -n "${PROMETHEUS_NAMESPACE}" port-forward svc/istio-prometheus 9090:9090 &>/dev/null &
+    kubectl -n "${PROMETHEUS_NAMESPACE}" port-forward svc/prometheus 9090:9090 &>/dev/null &
     CLEANUP_PIDS+=("$!")
 
     FORTIO_CLIENT_POD=$(kubectl get pods -n "${NAMESPACE}" | grep fortioclient | awk '{print $1}')
@@ -139,11 +149,11 @@ function exit_handling() {
   fi
 
   # Copy raw data from fortio client pod
-  kubectl --namespace "${NAMESPACE}" cp "${FORTIO_CLIENT_POD}":/var/lib/fortio /tmp/rawdata -c shell
+  # kubectl --namespace "${NAMESPACE}" cp "${FORTIO_CLIENT_POD}":/var/lib/fortio /tmp/rawdata -c shell
   # gsutil -q cp -r /tmp/rawdata "gs://${GCS_BUCKET}/${OUTPUT_DIR}/rawdata"
 
   # Cleanup cluster resources
-  cleanup
+  # cleanup
 }
 
 # add trap to copy raw data when exiting, also output logging information for debugging
@@ -152,14 +162,14 @@ trap exit_handling EXIT
 
 # Step 8: run Istio performance test
 # Helper functions
-function collect_flame_graph() {
-    FLAME_OUTPUT_DIR="${WD}/flame/flameoutput"
-    # gsutil -q cp -r "${FLAME_OUTPUT_DIR}/*.svg" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/flamegraphs" || true
-}
+# function collect_flame_graph() {
+#     FLAME_OUTPUT_DIR="${WD}/flame/flameoutput"
+#     # gsutil -q cp -r "${FLAME_OUTPUT_DIR}/*.svg" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/flamegraphs" || true
+# }
 
 function collect_metrics() {
   # shellcheck disable=SC2155
-  export CSV_OUTPUT="$(mktemp /tmp/benchmark_XXXX)"
+  export CSV_OUTPUT="$(mktemp /tmp/${OUTPUT_DIR}/benchmark_XXXX)"
   pipenv run python3 fortio.py "${FORTIO_CLIENT_URL}" --csv_output="$CSV_OUTPUT" --prometheus=${PROMETHEUS_URL} \
    --csv StartTime,ActualDuration,Labels,NumThreads,ActualQPS,p50,p90,p99,p999,cpu_mili_avg_istio_proxy_fortioclient,\
 cpu_mili_avg_istio_proxy_fortioserver,cpu_mili_avg_istio_proxy_istio-ingressgateway,mem_Mi_avg_istio_proxy_fortioclient,\
@@ -172,10 +182,10 @@ function run_benchmark_test() {
   pushd "${WD}/runner"
   CONFIG_FILE="${1}"
   pipenv run python3 runner.py --config_file "${CONFIG_FILE}"
-
-  if [[ "${TRIALRUN}" == "False" ]]; then
-    collect_metrics
-  fi
+  collect_metrics
+  # if [[ "${TRIALRUN}" == "False" ]]; then
+  #   collect_metrics
+  # fi
   popd
 }
 
@@ -240,18 +250,18 @@ for dir in "${CONFIG_DIR}"/*; do
     pushd "${dir}"
 
     # Install istio with custom overlay
-    if [[ -e "./installation.yaml" ]]; then
-       extra_overlay="-f ${dir}/installation.yaml"
-    fi
-    pushd "${ROOT}/istio-install"
-      DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-    popd
+    # if [[ -e "./installation.yaml" ]]; then
+    #    extra_overlay="-f ${dir}/installation.yaml"
+    # fi
+    # pushd "${ROOT}/istio-install"
+    #   DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
+    # popd
 
     # Custom pre-run
-    if [[ -e "./prerun.sh" ]]; then
-       # shellcheck disable=SC1091
-       source prerun.sh
-    fi
+    # if [[ -e "./prerun.sh" ]]; then
+    #    # shellcheck disable=SC1091
+    #    source prerun.sh
+    # fi
 
     # TRIALRUN as a pre-submit check, only run agaist the first set of enabled perf run in the perf_conf file
     if [[ "${TRIALRUN}" == "True" ]]; then
@@ -260,7 +270,7 @@ for dir in "${CONFIG_DIR}"/*; do
     fi
 
     # Collect config_dump after prerun.sh and before test run, in order to verify test setup is correct
-    collect_config_dump "${config_name}"
+    # collect_config_dump "${config_name}"
 
     # Collect pod spec
     collect_pod_spec "${FORTIO_CLIENT_POD}"
@@ -279,12 +289,12 @@ for dir in "${CONFIG_DIR}"/*; do
     collect_clusters_info "${config_name}"
 
     # Custom post run
-    if [[ -e "./postrun.sh" ]]; then
-       # shellcheck disable=SC1091
-       source postrun.sh
-    fi
+    # if [[ -e "./postrun.sh" ]]; then
+    #    # shellcheck disable=SC1091
+    #    source postrun.sh
+    # fi
 
-    collect_flame_graph
+    # collect_flame_graph
     # TODO: can be added to shared_postrun.sh
 
     # restart proxy after each group

@@ -90,9 +90,9 @@ then
   kubectl label namespace "${NAMESPACE}" "istio.io/rev"="asm-1-17" --overwrite || true
 fi
 
-if [[ "$LINKERD_INJECT" == "enabled" ]]
-then
-  kubectl annotate namespace "${NAMESPACE}" linkerd.io/inject=enabled || true
-fi
+# if [[ "$LINKERD_INJECT" == "enabled" ]]
+# then
+#   kubectl annotate namespace "${NAMESPACE}" linkerd.io/inject=enabled || true
+# fi
 
 setup_test
