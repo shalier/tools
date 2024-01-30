@@ -11,10 +11,6 @@ qps:
     - 800
     - 1000
     - 1200
-    - 1400
-    - 1600
-    - 1800
-    - 2000
 duration: 240
 perf_record: false
 run_bothsidecar: true

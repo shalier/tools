@@ -13,8 +13,8 @@
 python3 ./graph_plotter.py \
 --graph_type=latency-p99 \
 --x_axis=qps \
---telemetry_modes=none_mtls_both,none_mtls_baseline \
+--telemetry_modes=jitter_baseline_dynamic-cilium \
 --query_list=10,100,200,400,800,1000 \
 --query_str=NumThreads==16 \
---csv_filepath=/tmp/cni-azure/benchmark_jugA.csv \
+--csv_filepath=/tmp/dynamic-cilium/benchmark_sSro.csv \
 --graph_title=./example_plot/plotter_output2.png

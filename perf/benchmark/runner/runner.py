@@ -134,7 +134,8 @@ class Fortio:
             nocatchup=False,
             load_gen_type="fortio",
             keepalive=True,
-            connection_reuse=None):
+            connection_reuse=None,
+            cluster_env="not_set"):
         self.run_id = str(uuid.uuid4()).partition('-')[0]
         self.headers = headers
         self.conn = conn
@@ -165,6 +166,7 @@ class Fortio:
         self.load_gen_type = load_gen_type
         self.keepalive = keepalive
         self.connection_reuse = connection_reuse
+        self.cluster_env = cluster_env
 
         if mesh == "linkerd":
             self.mesh = "linkerd"
@@ -237,7 +239,7 @@ class Fortio:
         for process in processes:
             process.join()
 
-    def generate_test_labels(self, conn, qps, size):
+    def generate_test_labels(self, conn, qps, size, args):
         size = size or self.size
         labels = self.run_id
         labels += "_qps_" + str(qps)
@@ -253,7 +255,9 @@ class Fortio:
 
         if self.extra_labels is not None:
             labels += "_" + self.extra_labels
-
+            labels+="_"+args.cluster_env
+        # if self.cluster_env != "not_set":
+        #     labels += "_" + self.cluster_env
         return labels
 
     def generate_headers_cmd(self, headers):
@@ -334,8 +338,8 @@ class Fortio:
 
     #     return nighthawk_cmd
 
-    def run(self, headers, conn, qps, size, duration):
-        labels = self.generate_test_labels(conn, qps, size)
+    def run(self, headers, conn, qps, size, duration, args):
+        labels = self.generate_test_labels(conn, qps, size, args)
 
         grpc = ""
         if self.protocol_mode == "grpc":
@@ -555,7 +559,7 @@ def run_perf_test(args):
         for conn in fortio.conn:
             for qps in fortio.qps:
                 fortio.run(headers=fortio.headers, conn=conn, qps=qps,
-                           duration=fortio.duration, size=fortio.size)
+                           duration=fortio.duration, size=fortio.size, args=args)
     finally:
         if port_forward_process is not None:
             port_forward_process.kill()
@@ -701,6 +705,7 @@ def get_parser():
         help="Range min:max for the max number of connections to reuse for each thread, default to unlimited.",
         default=None
     )
+    parser.add_argument("--cluster_env", help="cluster environment")
 
     define_bool(parser, "baseline", "run baseline for all", False)
     define_bool(parser, "serversidecar",
