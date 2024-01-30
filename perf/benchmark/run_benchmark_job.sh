@@ -90,7 +90,6 @@ dt=$(date +'%Y%m%d')
 
 # Step 6: setup fortio and prometheus
 function setup_fortio_and_prometheus() {
-    kubectl apply -f ../istio-install/base/templates/prometheus.yaml -n "${PROMETHEUS_NAMESPACE}"
     # shellcheck disable=SC2155
     INGRESS_IP="$(kubectl get services -n ${NAMESPACE} fortioclient -o jsonpath="{.status.loadBalancer.ingress[0].ip}")"
     local report_port="8080"
@@ -183,7 +182,7 @@ mem_Mi_avg_istio_proxy_fortioserver,mem_Mi_avg_istio_proxy_istio-ingressgateway
 function run_benchmark_test() {
   pushd "${WD}/runner"
   CONFIG_FILE="${1}"
-  pipenv run python3 runner.py --config_file "${CONFIG_FILE}"
+  pipenv run python3 runner.py --config_file "${CONFIG_FILE}" --cluster_env "${CLUSTER_LABEL}"
   if [[ "${TRIALRUN}" == "false" ]]; then
     collect_metrics
   fi
@@ -266,14 +265,24 @@ for dir in "${CONFIG_DIR}"/*; do
     collect_pod_spec "${FORTIO_SERVER_POD}"
 
     # Run test and collect data
-    if [[ -e "./cpu_mem.yaml" ]]; then
-       run_benchmark_test "${dir}/cpu_mem.yaml"
-       echo Running cpu mem
-    fi
+    # if [[ -e "./cpu_mem.yaml" ]]; then
+    #    run_benchmark_test "${dir}/cpu_mem.yaml"
+    #    echo Running cpu mem
+    # fi
 
-    if [[ -e "./latency.yaml" ]]; then
-       run_benchmark_test "${dir}/latency.yaml"
-       echo Running latency
+    # if [[ -e "./latency.yaml" ]]; then
+    #    run_benchmark_test "${dir}/latency.yaml"
+    #    echo Running latency
+    # fi
+
+    # if [[ -e "./cpu_mem_jitter.yaml" ]]; then
+    #    run_benchmark_test "${dir}/cpu_mem_jitter.yaml"
+    #    echo Running cpu mem w jitter
+    # fi
+
+    if [[ -e "./latency_jitter.yaml" ]]; then
+       run_benchmark_test "${dir}/latency_jitter.yaml"
+       echo Running latency w jitter
     fi
 
     # Collect clusters info after test run and before cleanup postrun.sh run

@@ -31,31 +31,37 @@ metric_dict = {"cpu-client": "cpu_mili_avg_istio_proxy_fortioclient",
 
 def plotter(args):
     check_if_args_provided(args)
-
-    df = pd.read_csv(args.csv_filepath)
+    print("csv_filepath", args.csv_filepath)
+    df = pd.read_csv(args.csv_filepath.strip())
     telemetry_modes_y_data = {}
     metric_name = get_metric_name(args)
     constructed_query_str = get_constructed_query_str(args)
 
+    # print("query string",constructed_query_str)
     for telemetry_mode in args.telemetry_modes:
         telemetry_modes_y_data[telemetry_mode] = get_data_helper(df, args.query_list, constructed_query_str,
                                                                  telemetry_mode, metric_name)
 
     dpi = 100
     plt.figure(figsize=(1138 / dpi, 871 / dpi), dpi=dpi)
-    maxVal=1
+    max_val=1
+    print("telemetry_modes_y_data",telemetry_modes_y_data)
+
     for index, (key, val) in enumerate(telemetry_modes_y_data.items()):
         print("index",index,"key",key,"val",val)
-        maxVal=max(max(val),maxVal)
-        # print("index",index,"key",key,"val",val,maxVal)
-        # if val[index] is not None:
-        #     maxVal=max(*[v for v in val if v is not None],maxVal)
-        plt.plot(np.arange(6), val, marker='o', label=key)
+        # creates the label for whether baseline/both and jitter/no_jitter
+        scenario_label,title_label = get_scenario_label(key)
+        print(scenario_label)
+        cluster_env=key.replace(scenario_label+"_",'')
+        print(cluster_env)
+        max_val=max(max(val), max_val)
+        num_x=len(val)
+        plt.plot(np.arange(num_x), val, marker='o', label=cluster_env)
         ax=plt.gca()
-        ax.xaxis.set_ticks(np.arange(6))
+        ax.xaxis.set_ticks(np.arange(num_x))
         ax.xaxis.set_ticklabels(args.query_list)
         z=random.uniform(-0.2,0.2)
-        for x,y in zip(np.arange(6), val):
+        for x,y in zip(np.arange(num_x), val):
             if y is None or x is None:
                 continue
             ax.annotate(y, xy=(x,y+index%3*z)) 
@@ -65,9 +71,9 @@ def plotter(args):
 
     plt.xlabel(get_x_label(args))
     plt.ylabel(get_y_label(args))
-    plt.ylim(0,maxVal+1)
+    plt.ylim(0,max_val+1)
     plt.grid()
-    plt.title(args.graph_type)
+    plt.title(get_title(args)+"\n"+title_label)
     plt.savefig(args.graph_title, dpi=dpi)
     # plt.show()
 
@@ -94,6 +100,17 @@ def check_args_consistency(args):
         print("Warning: your specified query_str does not match with the x_axis definition.")
         return False
     return True
+
+
+def get_scenario_label(key_str):
+    if key_str.startswith("jitter_baseline"):
+        return "jitter_baseline", "Baseline with Jitter"
+    if key_str.startswith("nojit_baseline"):
+        return "nojit_baseline","Baseline without Jitter"
+    if key_str.startswith("jitter_both"):
+        return "jitter_both","Sidecar Enabled with Jitter"
+    if key_str.startswith("nojit_both"):
+        return "nojit_both","Sidecar Enabled without Jitter"
 
 
 def get_constructed_query_str(args):
@@ -130,6 +147,20 @@ def get_data_helper(df, query_list, query_str, telemetry_mode, metric_name):
                 y_series_data.append(None)
 
     return y_series_data
+
+
+def get_title(args):
+    if args.graph_type.startswith("latency"):
+        titleArr=args.graph_type.split("-")
+        title=titleArr[1].title()+" "+ titleArr[0].title()
+        if args.query_str.startswith("NumThreads"):
+            numThreads=args.query_str[args.query_str.rindex("==")+2:]
+            title+=" At "+numThreads+" Client Connections"
+        if args.query_str.startswith("ActualQPS=="):
+            qps=args.query_str[args.query_str.rindex("==")+2:]
+            title+=" At "+qps+" QPS"
+        return title
+    return ""
 
 
 def get_x_label(args):
