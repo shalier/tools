@@ -20,6 +20,7 @@ import matplotlib.axes as axes
 import numpy as np
 import random
 import math
+import re
 
 metric_dict = {"cpu-client": "cpu_mili_avg_istio_proxy_fortioclient",
                "cpu-server": "cpu_mili_avg_istio_proxy_fortioserver",
@@ -28,16 +29,16 @@ metric_dict = {"cpu-client": "cpu_mili_avg_istio_proxy_fortioclient",
                "mem-server": "mem_Mi_avg_istio_proxy_fortioserver",
                "mem-ingressgateway": "mem_Mi_avg_istio_proxy_istio-ingressgateway"}
 
+baseline_suffix="_baseline"
+both_suffix="_both"
 
 def plotter(args):
     check_if_args_provided(args)
-    print("csv_filepath", args.csv_filepath)
-    df = pd.read_csv(args.csv_filepath.strip())
+    df = pd.read_csv(args.csv_filepath)
     telemetry_modes_y_data = {}
     metric_name = get_metric_name(args)
     constructed_query_str = get_constructed_query_str(args)
 
-    # print("query string",constructed_query_str)
     for telemetry_mode in args.telemetry_modes:
         telemetry_modes_y_data[telemetry_mode] = get_data_helper(df, args.query_list, constructed_query_str,
                                                                  telemetry_mode, metric_name)
@@ -45,26 +46,35 @@ def plotter(args):
     dpi = 100
     plt.figure(figsize=(1138 / dpi, 871 / dpi), dpi=dpi)
     max_val=1
-    print("telemetry_modes_y_data",telemetry_modes_y_data)
 
     for index, (key, val) in enumerate(telemetry_modes_y_data.items()):
-        print("index",index,"key",key,"val",val)
-        # creates the label for whether baseline/both and jitter/no_jitter
-        scenario_label,title_label = get_scenario_label(key)
-        print(scenario_label)
-        cluster_env=key.replace(scenario_label+"_",'')
-        print(cluster_env)
-        max_val=max(max(val), max_val)
+       # creates the label for whether baseline/both and jitter/no_jitter
+        if baseline_suffix in key:
+            w_jitter, baseline_or_both, title_label = get_scenario_label(key, True)
+        elif both_suffix in key:
+            w_jitter, baseline_or_both, title_label = get_scenario_label(key, False)
+        # remove prefix - "w_jitter"
+        rm_w_jitter_label=key.replace(w_jitter,'')
+        if args.comparison != "true":
+            # remove suffix - "_baseline" or "_both"
+            cluster_env=rm_w_jitter_label.replace(baseline_or_both,'')
+        else:
+            cluster_env=rm_w_jitter_label
+
+        cluster_env=re.sub(r'\d+', "", cluster_env)
+        max_val=max(max([v for v in val if v is not None]), max_val)
         num_x=len(val)
         plt.plot(np.arange(num_x), val, marker='o', label=cluster_env)
         ax=plt.gca()
         ax.xaxis.set_ticks(np.arange(num_x))
         ax.xaxis.set_ticklabels(args.query_list)
         z=random.uniform(-0.2,0.2)
-        for x,y in zip(np.arange(num_x), val):
-            if y is None or x is None:
-                continue
-            ax.annotate(y, xy=(x,y+index%3*z)) 
+        # shows values for data points
+        # commented out as it makes the graph too noisy
+        # for x,y in zip(np.arange(num_x), val):
+        #     if y is None or x is None:
+        #         continue
+        #     ax.annotate(y, xy=(x,y+index%3*z)) 
     box=ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -73,15 +83,16 @@ def plotter(args):
     plt.ylabel(get_y_label(args))
     plt.ylim(0,max_val+1)
     plt.grid()
-    plt.title(get_title(args)+"\n"+title_label)
+    if title_label!="":
+        plt.title(get_title(args)+" - "+title_label)
+    else:
+        plt.title(get_title(args))
     plt.savefig(args.graph_title, dpi=dpi)
-    # plt.show()
 
 
 # Helpers
 def check_if_args_provided(args):
     args_all_provided = True
-    print(vars(args))
     for _, val in vars(args).items():
         if val == "":
             print("Warning: There is at least one argument that you did not specify with a value.\n")
@@ -102,27 +113,26 @@ def check_args_consistency(args):
     return True
 
 
-def get_scenario_label(key_str):
-    if key_str.startswith("jitter_baseline"):
-        return "jitter_baseline", "Baseline with Jitter"
-    if key_str.startswith("nojit_baseline"):
-        return "nojit_baseline","Baseline without Jitter"
-    if key_str.startswith("jitter_both"):
-        return "jitter_both","Sidecar Enabled with Jitter"
-    if key_str.startswith("nojit_both"):
-        return "nojit_both","Sidecar Enabled without Jitter"
+def get_scenario_label(key_str, isBaseline):
+    if key_str.startswith("jitter_") and isBaseline:
+        return "jitter_", "_baseline", "Baseline with Jitter"
+    if key_str.startswith("__") and isBaseline:
+        return "__", "_baseline", "Baseline"
+    if key_str.startswith("jitter_") and not isBaseline:
+        return "jitter_", "_both", "Sidecar Enabled with Jitter"
+    if key_str.startswith("__") and not isBaseline:
+        return "__", "_both", "Sidecar Enabled"
 
 
 def get_constructed_query_str(args):
     if args.x_axis == "qps":
-        return 'ActualQPS==@ql and ' + args.query_str + ' and Labels.str.endswith(@telemetry_mode)'
+        return 'ActualQPS==@ql'+ ' and Labels.str.endswith(@telemetry_mode)'
     elif args.x_axis == "conn":
-        return args.query_str + ' and NumThreads==@ql and Labels.str.endswith(@telemetry_mode)'
+        return 'NumThreads==@ql and Labels.str.endswith(@telemetry_mode)'
     return ""
 
 
 def get_metric_name(args):
-    print(args)
     if args.graph_type.startswith("latency"):
         return args.graph_type.split("-")[1]
     return metric_dict[args.graph_type]
@@ -133,6 +143,13 @@ def get_data_helper(df, query_list, query_str, telemetry_mode, metric_name):
 
     for ql in query_list:
         data = df.query(query_str)
+        enter=False
+        while data.empty and ql>=0:
+            # target query could not be hit if uniform was ran, decrement until we find a match
+            ql-=1
+            data = df.query('ActualQPS==@ql'+ ' and Labels.str.endswith(@telemetry_mode)')
+        if enter:
+            print("found",ql)
         try:
             data[metric_name].head().empty
         except KeyError as e:
@@ -155,10 +172,10 @@ def get_title(args):
         title=titleArr[1].title()+" "+ titleArr[0].title()
         if args.query_str.startswith("NumThreads"):
             numThreads=args.query_str[args.query_str.rindex("==")+2:]
-            title+=" At "+numThreads+" Client Connections"
+            title+="\n"+numThreads+" Client Connections"
         if args.query_str.startswith("ActualQPS=="):
             qps=args.query_str[args.query_str.rindex("==")+2:]
-            title+=" At "+qps+" QPS"
+            title+="\n"+qps+" QPS"
         return title
     return ""
 
@@ -226,6 +243,10 @@ def get_parser():
     parser.add_argument(
         "--graph_title",
         help="The graph title."
+    )
+    parser.add_argument(
+        "--comparison",
+        help="The comparison mode, are you comparing two specific scenarios."
     )
     return parser
 

@@ -10,27 +10,30 @@ def main(argv):
     parser.add_argument(
         "-c", "--filepath", type=str, required=True,
         help="CSV file path, where all csv files will be put into.")
-    parser.add_argument("--files", type=str, required=True,
-                        help="CSV files, which will be appended to the amalgamated file.")
+    parser.add_argument("--dirs", type=str, required=True,
+                        help="CSV dirs, which will be appended to the amalgamated file.")
     args = parser.parse_args(argv)
+    
     frames = []
-    args.files = args.files.split(" ")
-    for file in args.files:
+    dirs= args.dirs.split(" ")
+    for file in dirs:
         if file == "":
             continue
         df = pd.read_csv(file)
         frames.append(df)
-    result = pd.concat(frames)
-    randNum=random.randint(0,100000)
+
+    df = pd.concat(frames)
+    df=df.loc[~df['cpu_mili_avg_istio_proxy_fortioclient'].eq(0)]
+    randNum=random.randint(0,100000) # so you don't override files
     path=os.path.join(args.filepath, "amalgamatedResults"+str(randNum)+".csv")
     while os.path.isfile(path):
         randNum+=1
         path=os.path.join(args.filepath, "amalgamatedResults"+str(randNum)+".csv")
 
     with open(path, 'w') as f:
-        f.write(result.to_csv(index=False))
+        f.write(df.to_csv(index=False))
     
     print(path)
-
+    
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
