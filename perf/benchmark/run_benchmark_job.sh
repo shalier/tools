@@ -67,7 +67,9 @@ CLEANUP_PIDS=()
 # Step 3: setup Istio performance test
 # pushd "${WD}"
 export ISTIO_INJECT="true"
-./setup_test.sh
+export ISTIO_ADDON_VERSION="${ISTIO_ADDON_VERSION:-asm-1-18}"
+
+./setup_test.sh ${ISTIO_ADDON_VERSION}
 # popd
 
 # # Step 4: install Python dependencies
@@ -82,7 +84,7 @@ export ISTIO_INJECT="true"
 # pipenv install
 
 # Step 5: setup perf data local output directory
-dt=$(date +'%Y%m%d')
+# dt=$(date +'%Y%m%d')
 # # Current output dir should be like: 20200523_nighthawk_master_1.7-alpha.f19fb40b777e357b605e85c04fb871578592ad1e
 # export OUTPUT_DIR="${dt}_${LOAD_GEN_TYPE}"
 # LOCAL_OUTPUT_DIR="/tmp/${OUTPUT_DIR}"
@@ -267,22 +269,10 @@ for dir in "${CONFIG_DIR}"/*; do
     # Run test and collect data
     # if [[ -e "./cpu_mem.yaml" ]]; then
     #    run_benchmark_test "${dir}/cpu_mem.yaml"
-    #    echo Running cpu mem
     # fi
 
-    # if [[ -e "./latency.yaml" ]]; then
-    #    run_benchmark_test "${dir}/latency.yaml"
-    #    echo Running latency
-    # fi
-
-    # if [[ -e "./cpu_mem_jitter.yaml" ]]; then
-    #    run_benchmark_test "${dir}/cpu_mem_jitter.yaml"
-    #    echo Running cpu mem w jitter
-    # fi
-
-    if [[ -e "./latency_jitter.yaml" ]]; then
-       run_benchmark_test "${dir}/latency_jitter.yaml"
-       echo Running latency w jitter
+    if [[ -e "./latency.yaml" ]]; then
+       run_benchmark_test "${dir}/latency.yaml"
     fi
 
     # Collect clusters info after test run and before cleanup postrun.sh run

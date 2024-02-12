@@ -10,14 +10,15 @@ qps:
     - 400
     - 800
     - 1000
-duration: 240
+duration: 300
+size: 1024
 perf_record: false
 run_bothsidecar: true
 run_serversidecar: false
 run_clientsidecar: false
 run_baseline: true
 
-extra_labels: "nojit"
+extra_labels: ""
+nocatchup: true
 uniform: true
-nocatchup:true
 jitter: false

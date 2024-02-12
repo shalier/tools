@@ -36,7 +36,7 @@ ISTIO_INJECT="${ISTIO_INJECT:-true}"
 LINKERD_INJECT="${LINKERD_INJECT:-disabled}"
 INTERCEPTION_MODE="${INTERCEPTION_MODE:-REDIRECT}"
 FORTIO_SERVER_INGRESS_CERT_ENABLED="${FORTIO_SERVER_INGRESS_CERT_ENABLED:-false}"
-echo "linkerd inject is ${LINKERD_INJECT}"
+ISTIO_ADDON_VERSION="${ISTIO_ADDON_VERSION:-asm-1-18}"
 
 mkdir -p "${TMPDIR}"
 
@@ -89,7 +89,7 @@ kubectl create ns "${NAMESPACE}" || true
 
 if [[ "$ISTIO_INJECT" == "true" ]]
 then
-  kubectl label namespace "${NAMESPACE}" istio.io/rev=asm-1-17 --overwrite || true
+  kubectl label namespace "${NAMESPACE}" istio.io/rev="${ISTIO_ADDON_VERSION}" --overwrite || true
 fi
 
 if [[ "$LINKERD_INJECT" == "enabled" ]]
