@@ -139,3 +139,5 @@ tools.code-workspace
 
 **/from_dir**
 **/to_dir**
+perf/benchmark/configs/istio/*/fortio*.yaml
+perf/benchmark/graph_plots/*
