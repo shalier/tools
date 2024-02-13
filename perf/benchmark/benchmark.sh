@@ -55,3 +55,5 @@ do
     az aks nodepool delete --cluster-name $clusterName -g ${RESOURCE_GROUP} -n ${TEST_PROM_NODE}
     az aks nodepool delete --cluster-name $clusterName -g ${RESOURCE_GROUP} -n ${TEST_USER_NODE}
 done
+
+./generate_plots.sh

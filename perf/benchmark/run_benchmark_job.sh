@@ -42,13 +42,13 @@ done
 export VALUES="${VALUES:-values-istio-postsubmit.yaml}"
 # Check https://github.com/istio/test-infra/blob/master/boskos/configs.yaml
 # for existing resources types
-# export RESOURCE_TYPE="${RESOURCE_TYPE:-gke-perf-preset}"
+export RESOURCE_TYPE="${RESOURCE_TYPE:-gke-perf-preset}"
 export PILOT_CLUSTER="${PILOT_CLUSTER:-}"
 export USE_MASON_RESOURCE="${USE_MASON_RESOURCE:-False}"
 export CLEAN_CLUSTERS="${CLEAN_CLUSTERS:-True}"
 export OWNER="${OWNER:-perf-tests}"
 export CREATE_CLUSTER="${CREATE_CLUSTER:-false}"
-export TAG="latest"
+
 # Istio performance test related Env vars
 export NAMESPACE=${NAMESPACE:-'test'}
 export PROMETHEUS_NAMESPACE=${PROMETHEUS_NAMESPACE:-'aks-istio-system'}
@@ -65,24 +65,11 @@ export CLUSTER_LABEL="${CLUSTER_LABEL:-"cluster-label"}"
 # Other Env vars
 # export GCS_BUCKET=${GCS_BUCKET:-"istio-build/perf"}
 export TRIALRUN=${TRIALRUN:-"False"}
-export VERSION=${VERSION:-"latest"}
-INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${VERSION}")
 
-# pushd "${ROOT}/istio-install"
-#    DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh -f istioctl_profiles/default-overlay.yaml
-# popd
 
 CLEANUP_PIDS=()
 
-# Step 1: create cluster
-# shellcheck disable=SC1090,SC1091
-# source "${ROOT}/../bin/setup_cluster.sh"
-# setup_e2e_cluster
-# export KUBECONFIG="${WD}/tmp/kube.yaml"
-# pushd "${ROOT}/istio-install"
-#   ./cluster.sh create
-# popd
-# Step 1: setup/create cluster
+# # Step 1: setup/create cluster
 # if [[ "${CREATE_CLUSTER}" == "true" ]]; then
 #   export KUBECONFIG="${WD}/tmp/kube.yaml"
 #   pushd "${ROOT}/istio-install"
@@ -109,10 +96,12 @@ CLEANUP_PIDS=()
 #     VERSION=${INSTALL_VERSION} ./setup_istio.sh
 #   else
 #     # Different branch tag resides in dev release directory like /latest, /1.4-dev, /1.5-dev etc.
-     INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${BRANCH}")
+#     INSTALL_VERSION=$(curl "https://storage.googleapis.com/istio-build/dev/${BRANCH}")
 #     echo "Setup istio release: ${INSTALL_VERSION}"
 #     DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh
 #   fi
+# popd
+
 # Step 3: setup Istio performance test
 # pushd "${WD}"
 export ISTIO_INJECT="true"
@@ -123,13 +112,6 @@ export ISTIO_ADDON_VERSION="${ISTIO_ADDON_VERSION:-asm-1-18}"
 
 # # Step 4: install Python dependencies
 # # Install pipenv
-# if [[ $(command -v pipenv) == "" ]];then
-#   apt-get update && apt-get -y install python3-pip
-#   pip3 install pipenv
-# fi
-
-# Step 4: install Python dependencies
-# Install pipenv
 # if [[ $(command -v pipenv) == "" ]];then
 #   apt-get update && apt-get -y install python3-pip
 #   pip3 install pipenv
@@ -175,28 +157,6 @@ function setup_fortio_and_prometheus() {
 
 setup_fortio_and_prometheus
 
-function unsetup_clusters() {
-  # use current-context if pilot_cluster not set
-  PILOT_CLUSTER="${PILOT_CLUSTER:-$(kubectl config current-context)}"
-}
-
-function mason_cleanup() {
-  if [[ ${MASON_CLIENT_PID} != -1 ]]; then
-    kill -SIGINT ${MASON_CLIENT_PID} || echo "failed to kill mason client"
-    wait
-  fi
-}
-
-function cleanup() {
-  if [[ "${CLEAN_CLUSTERS}" == "True" ]]; then
-    unsetup_clusters
-  fi
-  if [[ "${USE_MASON_RESOURCE}" == "True" ]]; then
-    mason_cleanup
-    cat "${FILE_LOG}"
-  fi
-}
-
 # Step 7: setup exit handling
 function exit_handling() {
   for pid in "${CLEANUP_PIDS[@]}"; do
@@ -211,21 +171,15 @@ function exit_handling() {
   # kubectl --namespace "${NAMESPACE}" cp "${FORTIO_CLIENT_POD}":/var/lib/fortio /tmp/rawdata -c shell
   # gsutil -q cp -r /tmp/rawdata "gs://${GCS_BUCKET}/${OUTPUT_DIR}/rawdata"
 
-  # Cleanup cluster resources
-  # cleanup
-  # Delete cluster
-  pushd "${ROOT}/istio-install"
-    ./cluster.sh delete
-  popd
-  if [[ "${CREATE_CLUSTER}" == "true" ]]; then
-    # Delete cluster
-    pushd "${ROOT}/istio-install"
-      ./cluster.sh delete
-    popd
-  else
-    # Cleanup cluster resources
-    cleanup
-  fi
+  # if [[ "${CREATE_CLUSTER}" == "true" ]]; then
+  #   # Delete cluster
+  #   pushd "${ROOT}/istio-install"
+  #     ./cluster.sh delete
+  #   popd
+  # else
+  #   # Cleanup cluster resources
+  #   cleanup
+  # fi
 }
 
 # add trap to copy raw data when exiting, also output logging information for debugging
@@ -241,6 +195,7 @@ function collect_metrics() {
 cpu_mili_avg_istio_proxy_fortioserver,cpu_mili_avg_istio_proxy_istio-ingressgateway,mem_Mi_avg_istio_proxy_fortioclient,\
 mem_Mi_avg_istio_proxy_fortioserver,mem_Mi_avg_istio_proxy_istio-ingressgateway
 
+  # gsutil -q cp "${CSV_OUTPUT}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/benchmark.csv"
 }
 
 function run_benchmark_test() {
@@ -275,6 +230,7 @@ function collect_envoy_info() {
   echo "storing envoy info in $ENVOY_DUMP_NAME"
   istioctl proxy-config all -oyaml "${POD_NAME}"."${NAMESPACE}"> "${ENVOY_DUMP_NAME}"
   # kubectl exec -n "${NAMESPACE}" "${POD_NAME}" -c istio-proxy -- curl http://localhost:15000/"${FILE_SUFFIX}" > "${ENVOY_DUMP_NAME}"
+  # gsutil -q cp -r "${ENVOY_DUMP_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/${FILE_SUFFIX}/${ENVOY_DUMP_NAME}"
 }
 
 function collect_config_dump() {
@@ -291,11 +247,14 @@ function collect_pod_spec() {
   POD_NAME=${1}
   POD_SPEC_NAME="${LOAD_GEN_TYPE}_${POD_NAME}.yaml"
   kubectl get pods "${POD_NAME}" -n "${NAMESPACE}" -o yaml > "${POD_SPEC_NAME}"
+  # gsutil -q cp -r "${POD_SPEC_NAME}" "gs://${GCS_BUCKET}/${OUTPUT_DIR}/pod_spec/${POD_SPEC_NAME}"
 }
 
+# install tools for profiling
+apt-get update && apt-get -y install linux-tools-generic
+
 # Start run perf test
-echo "Start to run perf benchmark test"
-CONFIG_DIR="${WD}/configs/istio"
+# echo "Start to run perf benchmark test, all collected data will be dumped to GCS bucket: ${GCS_BUCKET}/${OUTPUT_DIR}"
 
 # Read through perf test configuration file to determine which group of test configuration to run or not run
 read_perf_test_conf "${WD}/configs/run_perf_test.conf"
@@ -315,18 +274,12 @@ for dir in "${CONFIG_DIR}"/*; do
     #    extra_overlay="-f ${dir}/installation.yaml"
     # fi
     # pushd "${ROOT}/istio-install"
-    #   DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
+    #   if [[ ${ISTIO_RELEASE_VERSION} ]]; then
+    #     VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
+    #   else
+    #     DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
+    #   fi
     # popd
-    if [[ -e "./installation.yaml" ]]; then
-       extra_overlay="-f ${dir}/installation.yaml"
-    fi
-    pushd "${ROOT}/istio-install"
-      if [[ ${ISTIO_RELEASE_VERSION} ]]; then
-        VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-      else
-        DEV_VERSION=${INSTALL_VERSION} ./setup_istio.sh "${extra_overlay}"
-      fi
-    popd
 
     # Custom pre-run
     # if [[ -e "./prerun.sh" ]]; then
